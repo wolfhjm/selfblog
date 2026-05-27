@@ -1,0 +1,16 @@
+{
+  "name": "个人成长 OS",
+  "short_name": "成长OS",
+  "description": "AI 陪伴的个人成长操作系统",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#f8fafc",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

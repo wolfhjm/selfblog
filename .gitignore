@@ -1,0 +1,15 @@
+.nuxt
+.output
+node_modules
+data/*.db
+data/*.db-shm
+data/*.db-wal
+.env
+.DS_Store
+npm-debug.log*
+pnpm-debug.log*
+dev-server*.log
+dev-server*.err.log
+.agents/
+.claude/
+skills-lock.json
