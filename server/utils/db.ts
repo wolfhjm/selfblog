@@ -113,6 +113,19 @@ function migrate(database: Database.Database) {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS journal_summaries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      date TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      source_conversation_id INTEGER REFERENCES conversations(id) ON DELETE SET NULL,
+      checkin_id INTEGER REFERENCES checkins(id) ON DELETE SET NULL,
+      visibility TEXT NOT NULL DEFAULT 'private',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS experiments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -21,6 +21,18 @@
       >
         提炼洞察
       </UButton>
+      <UButton
+        class="mt-2"
+        icon="i-lucide-book-open"
+        color="neutral"
+        variant="soft"
+        block
+        :disabled="!activeConversationId"
+        :loading="summarizing"
+        @click="generateJournal"
+      >
+        生成日记小结
+      </UButton>
 
       <div class="mt-5">
         <h2 class="mb-2 text-sm font-semibold text-slate-700">历史对话</h2>
@@ -119,21 +131,51 @@
         </div>
       </template>
     </UModal>
+
+    <UModal v-model:open="journalOpen" title="确认保存日记小结">
+      <template #body>
+        <div class="space-y-4">
+          <UFormField label="标题">
+            <UInput v-model="journalDraft.title" class="w-full" />
+          </UFormField>
+          <UFormField label="小结草稿">
+            <UTextarea v-model="journalDraft.content" autoresize class="w-full" />
+          </UFormField>
+          <UButton icon="i-lucide-save" block @click="saveJournal">保存日记小结</UButton>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
 <script setup lang="ts">
 const toast = useToast()
+const route = useRoute()
 const { data: conversations, refresh } = await useFetch<any[]>('/api/conversations', { default: () => [] })
 const draft = ref('')
 const messages = ref<any[]>([])
 const activeConversationId = ref<number | null>(null)
 const sending = ref(false)
 const extracting = ref(false)
+const summarizing = ref(false)
 const error = ref('')
 const insightDraft = ref('')
 const insightOpen = ref(false)
+const journalDraft = reactive({
+  date: '',
+  title: '',
+  content: '',
+  source_conversation_id: null as number | null,
+  checkin_id: null as number | null
+})
+const journalOpen = ref(false)
 const messageList = ref<HTMLElement | null>(null)
+
+onMounted(async () => {
+  const conversationId = Number(route.query.conversation)
+  if (!conversationId) return
+  await loadConversation(conversationId)
+})
 
 function scrollToBottom() {
   nextTick(() => {
@@ -280,6 +322,36 @@ async function saveInsight() {
   })
   insightOpen.value = false
   toast.add({ title: '洞察已保存', color: 'success' })
+}
+
+async function generateJournal() {
+  if (!activeConversationId.value) return
+  summarizing.value = true
+  try {
+    const result = await $fetch<any>('/api/ai/journal', {
+      method: 'POST',
+      body: { conversation_id: activeConversationId.value }
+    })
+    journalDraft.date = result.date
+    journalDraft.title = result.title
+    journalDraft.content = result.content
+    journalDraft.source_conversation_id = result.source_conversation_id
+    journalDraft.checkin_id = result.checkin_id
+    journalOpen.value = true
+  } catch (err: any) {
+    toast.add({ title: '生成失败', description: readableError(err, '请检查 AI 配置或稍后再试'), color: 'error' })
+  } finally {
+    summarizing.value = false
+  }
+}
+
+async function saveJournal() {
+  await $fetch('/api/journals', {
+    method: 'POST',
+    body: journalDraft
+  })
+  journalOpen.value = false
+  toast.add({ title: '日记小结已保存', color: 'success' })
 }
 
 function readableError(err: any, fallback: string) {

@@ -13,7 +13,7 @@
 
     <div class="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
       <SectionCard title="今日打卡" description="轻一点也没关系，关键是留下真实状态。">
-        <CheckInForm v-if="dashboard" :date="dashboard.today" :initial="dashboard.checkin" @saved="refresh" />
+        <CheckInForm v-if="dashboard" :date="dashboard.today" :initial="dashboard.checkin" @saved="refreshCheckinData" />
       </SectionCard>
 
       <SectionCard title="当前实验" description="本周只做一个 30 分钟内的小尝试。">
@@ -29,6 +29,57 @@
         </div>
       </SectionCard>
     </div>
+
+    <SectionCard title="打卡记录" description="最近 30 次状态会留在这里，方便回看自己的节奏。">
+      <div v-if="checkins?.length" class="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-100 bg-white">
+        <div
+          v-for="item in checkins"
+          :key="item.id"
+          class="grid gap-3 p-4 md:grid-cols-[8rem_1fr_auto] md:items-center"
+        >
+          <div class="space-y-2">
+            <p class="font-semibold text-slate-950">{{ item.date }}</p>
+            <UBadge color="neutral" variant="soft">情绪 {{ item.mood }}/5</UBadge>
+          </div>
+          <div class="min-w-0 space-y-1">
+            <p class="line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+              {{ item.done_text || '没有记录具体事项。' }}
+            </p>
+            <p class="truncate text-sm text-slate-500">{{ item.feeling_text || '没有记录一句话感受。' }}</p>
+          </div>
+          <UButton
+            icon="i-lucide-message-circle"
+            color="neutral"
+            variant="soft"
+            :loading="startingConversationId === item.id"
+            @click="startCheckinConversation(item)"
+          >
+            找 AI 聊聊
+          </UButton>
+        </div>
+      </div>
+      <p v-else class="text-sm text-slate-500">还没有历史打卡。保存一次今日打卡后会出现在这里。</p>
+    </SectionCard>
+
+    <SectionCard title="日记小结" description="AI 会把打卡和对话整理成更完整的回看材料。">
+      <div v-if="journals?.length" class="space-y-3">
+        <article
+          v-for="item in journals"
+          :key="item.id"
+          class="rounded-lg border border-slate-100 bg-white p-4"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p class="font-semibold text-slate-950">{{ item.title }}</p>
+              <p class="mt-1 text-xs text-slate-500">{{ item.date }}</p>
+            </div>
+            <UBadge color="neutral" variant="soft">私密</UBadge>
+          </div>
+          <p class="mt-3 line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-slate-700">{{ item.content }}</p>
+        </article>
+      </div>
+      <p v-else class="text-sm text-slate-500">还没有日记小结。可以从探索页的一段对话里生成。</p>
+    </SectionCard>
 
     <div class="grid gap-4 md:grid-cols-3">
       <SectionCard title="原则数量">
@@ -48,5 +99,44 @@
 </template>
 
 <script setup lang="ts">
+const toast = useToast()
 const { data: dashboard, refresh } = await useFetch<any>('/api/dashboard')
+const { data: checkins, refresh: refreshCheckins } = await useFetch<any[]>('/api/checkins')
+const { data: journals } = await useFetch<any[]>('/api/journals')
+const startingConversationId = ref<number | null>(null)
+
+async function refreshCheckinData() {
+  await Promise.all([refresh(), refreshCheckins()])
+}
+
+async function startCheckinConversation(item: any) {
+  startingConversationId.value = item.id
+  try {
+    const message = [
+      '我想基于这次打卡聊一聊。',
+      `日期：${item.date}`,
+      `今天做了什么：${item.done_text || '没有写'}`,
+      `一句话感受：${item.feeling_text || '没有写'}`,
+      `情绪分数：${item.mood}/5`,
+      '',
+      '请你像一个温暖但诚实的朋友陪我聊，也可以像咨询师一样帮我梳理，但不要诊断。先回应我此刻的状态，再问一个能让我更了解自己的问题。'
+    ].join('\n')
+    const result = await $fetch<any>('/api/conversations', {
+      method: 'POST',
+      body: {
+        title: `${item.date} 打卡陪伴`,
+        message
+      }
+    })
+    await navigateTo(`/explore?conversation=${result.conversationId}`)
+  } catch (error: any) {
+    toast.add({
+      title: '对话创建失败',
+      description: error?.statusMessage || error?.message || '请稍后再试',
+      color: 'error'
+    })
+  } finally {
+    startingConversationId.value = null
+  }
+}
 </script>

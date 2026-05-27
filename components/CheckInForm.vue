@@ -1,5 +1,11 @@
 <template>
   <form class="space-y-4" @submit.prevent="submit">
+    <p
+      v-if="hasSavedCheckin"
+      class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700"
+    >
+      今日打卡已记录。修改内容后可以再次更新，不会重复新增。
+    </p>
     <UFormField label="今天做了什么">
       <UTextarea v-model="form.done_text" autoresize placeholder="哪怕只是一点点，也算数。" class="w-full" />
     </UFormField>
@@ -21,7 +27,15 @@
         </button>
       </div>
     </div>
-    <UButton type="submit" icon="i-lucide-check" block :loading="loading">保存今日打卡</UButton>
+    <UButton
+      type="submit"
+      :icon="buttonIcon"
+      block
+      :disabled="hasSavedCheckin && !isDirty"
+      :loading="loading"
+    >
+      {{ buttonLabel }}
+    </UButton>
   </form>
 </template>
 
@@ -36,12 +50,49 @@ const form = reactive({
   feeling_text: props.initial?.feeling_text || '',
   mood: props.initial?.mood || 3
 })
+const hasSavedCheckin = ref(Boolean(props.initial))
+const savedSnapshot = ref(snapshotForm(form))
+
+const isDirty = computed(() => snapshotForm(form) !== savedSnapshot.value)
+const buttonLabel = computed(() => {
+  if (!hasSavedCheckin.value) return '保存今日打卡'
+  return isDirty.value ? '更新今日打卡' : '今日打卡已记录'
+})
+const buttonIcon = computed(() => {
+  if (!hasSavedCheckin.value || isDirty.value) return 'i-lucide-check'
+  return 'i-lucide-check-check'
+})
+
+watch(() => props.date, (date) => {
+  form.date = date
+})
+
+watch(() => props.initial, (initial) => {
+  if (!initial) return
+
+  form.done_text = initial.done_text || ''
+  form.feeling_text = initial.feeling_text || ''
+  form.mood = initial.mood || 3
+  hasSavedCheckin.value = true
+  savedSnapshot.value = snapshotForm(form)
+})
+
+function snapshotForm(value: typeof form) {
+  return JSON.stringify({
+    date: value.date,
+    done_text: value.done_text,
+    feeling_text: value.feeling_text,
+    mood: value.mood
+  })
+}
 
 async function submit() {
   loading.value = true
   try {
     await $fetch('/api/checkins', { method: 'POST', body: form })
     toast.add({ title: '已保存', description: '今天的状态被记录下来了。', color: 'success' })
+    hasSavedCheckin.value = true
+    savedSnapshot.value = snapshotForm(form)
     emit('saved')
   } catch (error: any) {
     toast.add({ title: '保存失败', description: error?.statusMessage || '请稍后再试', color: 'error' })
