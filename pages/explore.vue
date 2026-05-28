@@ -23,6 +23,18 @@
       </UButton>
       <UButton
         class="mt-2"
+        icon="i-lucide-inbox"
+        color="neutral"
+        variant="soft"
+        block
+        :disabled="!activeConversationId"
+        :loading="extractingCandidates"
+        @click="extractCandidates"
+      >
+        提取候选
+      </UButton>
+      <UButton
+        class="mt-2"
         icon="i-lucide-book-open"
         color="neutral"
         variant="soft"
@@ -38,15 +50,24 @@
         <h2 class="mb-2 text-sm font-semibold text-slate-700">历史对话</h2>
         <div class="explore-history space-y-2">
           <p v-if="!conversations.length" class="rounded-lg bg-white/70 p-3 text-sm text-slate-500">还没有历史对话。</p>
-          <button
+          <div
             v-for="item in conversations"
             :key="item.id"
-            class="w-full rounded-lg border bg-white p-3 text-left text-sm transition hover:border-teal-300"
+            class="flex items-start gap-2 rounded-lg border bg-white p-2 text-sm transition hover:border-teal-300"
             :class="activeConversationId === item.id ? 'border-teal-500 text-teal-900' : 'border-slate-200 text-slate-700'"
-            @click="loadConversation(item.id)"
           >
-            <span class="line-clamp-2">{{ item.title }}</span>
-          </button>
+            <button class="min-w-0 flex-1 p-1 text-left" @click="loadConversation(item.id)">
+              <span class="line-clamp-2">{{ item.title }}</span>
+            </button>
+            <UButton
+              icon="i-lucide-trash-2"
+              color="error"
+              variant="ghost"
+              size="xs"
+              :aria-label="`删除 ${item.title}`"
+              @click.stop="askDeleteConversation(item)"
+            />
+          </div>
         </div>
       </div>
     </aside>
@@ -145,6 +166,20 @@
         </div>
       </template>
     </UModal>
+
+    <UModal v-model:open="deleteOpen" title="删除这段对话？">
+      <template #body>
+        <div class="space-y-4">
+          <p class="text-sm leading-6 text-slate-600">
+            将删除「{{ deletingConversation?.title }}」以及其中的聊天消息。已经保存的洞察和日记小结不会被删除，但会失去来源对话引用。
+          </p>
+          <div class="flex justify-end gap-2">
+            <UButton color="neutral" variant="ghost" @click="deleteOpen = false">取消</UButton>
+            <UButton color="error" icon="i-lucide-trash-2" :loading="deleting" @click="deleteConversation">确认删除</UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -157,6 +192,7 @@ const messages = ref<any[]>([])
 const activeConversationId = ref<number | null>(null)
 const sending = ref(false)
 const extracting = ref(false)
+const extractingCandidates = ref(false)
 const summarizing = ref(false)
 const error = ref('')
 const insightDraft = ref('')
@@ -170,6 +206,9 @@ const journalDraft = reactive({
 })
 const journalOpen = ref(false)
 const messageList = ref<HTMLElement | null>(null)
+const deleteOpen = ref(false)
+const deleting = ref(false)
+const deletingConversation = ref<any | null>(null)
 
 onMounted(async () => {
   const conversationId = Number(route.query.conversation)
@@ -217,7 +256,12 @@ async function send() {
       await loadConversation(result.conversationId)
       await refresh()
     } else {
-      await $fetch(`/api/conversations/${activeConversationId.value}/messages`, { method: 'POST', body: { message: text } })
+      const result = await $fetch<any>(`/api/conversations/${activeConversationId.value}/messages`, { method: 'POST', body: { message: text } })
+      if (result.error) {
+        markLastLocalUserFailed(text)
+        error.value = readableError(result.error, 'AI 对话失败，请检查配置或稍后再试')
+        return
+      }
       await loadConversation(activeConversationId.value)
     }
   } catch (err: any) {
@@ -258,10 +302,15 @@ async function retryMessage(message: any) {
       await loadConversation(result.conversationId)
       await refresh()
     } else {
-      await $fetch(`/api/conversations/${activeConversationId.value}/messages`, {
+      const result = await $fetch<any>(`/api/conversations/${activeConversationId.value}/messages`, {
         method: 'POST',
         body: { message: message.content, retry_last: true }
       })
+      if (result.error) {
+        message.failed = true
+        error.value = readableError(result.error, '重发失败，请稍后再试')
+        return
+      }
       await loadConversation(activeConversationId.value)
     }
   } catch (err: any) {
@@ -293,6 +342,35 @@ async function loadConversation(id: number) {
   scrollToBottom()
 }
 
+function askDeleteConversation(item: any) {
+  deletingConversation.value = item
+  deleteOpen.value = true
+}
+
+async function deleteConversation() {
+  if (!deletingConversation.value) return
+  deleting.value = true
+  try {
+    const id = deletingConversation.value.id
+    await $fetch(`/api/conversations/${id}`, { method: 'DELETE' })
+    if (activeConversationId.value === id) {
+      activeConversationId.value = null
+      messages.value = []
+      draft.value = ''
+      error.value = ''
+      await navigateTo('/explore', { replace: true })
+    }
+    await refresh()
+    deleteOpen.value = false
+    deletingConversation.value = null
+    toast.add({ title: '对话已删除', color: 'success' })
+  } catch (err: any) {
+    toast.add({ title: '删除失败', description: readableError(err, '请稍后再试'), color: 'error' })
+  } finally {
+    deleting.value = false
+  }
+}
+
 function markRecoverableLastUserMessage(items: any[]) {
   if (!items.length) return items
   const lastIndex = items.length - 1
@@ -322,6 +400,23 @@ async function saveInsight() {
   })
   insightOpen.value = false
   toast.add({ title: '洞察已保存', color: 'success' })
+}
+
+async function extractCandidates() {
+  if (!activeConversationId.value) return
+  extractingCandidates.value = true
+  try {
+    const result = await $fetch<any>('/api/ai/candidates', {
+      method: 'POST',
+      body: { conversation_id: activeConversationId.value }
+    })
+    toast.add({ title: `已提取 ${result.count || 0} 条候选`, color: 'success' })
+    await navigateTo('/inbox')
+  } catch (err: any) {
+    toast.add({ title: '提取失败', description: readableError(err, '请检查 AI 配置或稍后再试'), color: 'error' })
+  } finally {
+    extractingCandidates.value = false
+  }
 }
 
 async function generateJournal() {

@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: '没有找到这段对话' })
   }
 
-  const date = body.date || new Date().toISOString().slice(0, 10)
+  const date = body.date || appDateString()
   const checkin = db.prepare('SELECT * FROM checkins WHERE user_id = ? AND date = ?').get(user.id, date) as any
   const recentCheckins = db.prepare(`
     SELECT date, done_text, feeling_text, mood

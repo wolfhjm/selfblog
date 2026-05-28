@@ -19,8 +19,8 @@
 const nav = [
   { label: '今日', to: '/', icon: 'i-lucide-house' },
   { label: '探索', to: '/explore', icon: 'i-lucide-message-circle' },
+  { label: '收件箱', to: '/inbox', icon: 'i-lucide-inbox' },
   { label: '实验', to: '/experiments', icon: 'i-lucide-flask-conical' },
-  { label: '原则', to: '/principles', icon: 'i-lucide-book-open' },
-  { label: '公开', to: '/public', icon: 'i-lucide-globe-2' }
+  { label: '原则', to: '/principles', icon: 'i-lucide-book-open' }
 ]
 </script>

@@ -32,7 +32,14 @@ export default defineEventHandler(async (event) => {
   }
 
   const storedMessages = db.prepare('SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id ASC').all(id) as any[]
-  const reply = await callAi(withExplorePrompt(storedMessages.map((item) => ({ role: item.role, content: item.content }))))
-  db.prepare('INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)').run(id, 'assistant', reply)
-  return { reply }
+  try {
+    const reply = await callAi(withExplorePrompt(storedMessages.map((item) => ({ role: item.role, content: item.content }))))
+    db.prepare('INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)').run(id, 'assistant', reply)
+    return { reply }
+  } catch (error: any) {
+    return {
+      reply: '',
+      error: error?.message || error?.statusMessage || 'AI 对话失败'
+    }
+  }
 })

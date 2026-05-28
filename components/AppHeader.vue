@@ -28,6 +28,8 @@ const { user, logout } = useAuth()
 const nav = [
   { label: '仪表盘', to: '/', icon: 'i-lucide-layout-dashboard' },
   { label: '探索', to: '/explore', icon: 'i-lucide-message-circle' },
+  { label: '地图', to: '/map', icon: 'i-lucide-network' },
+  { label: '收件箱', to: '/inbox', icon: 'i-lucide-inbox' },
   { label: '实验', to: '/experiments', icon: 'i-lucide-flask-conical' },
   { label: '原则', to: '/principles', icon: 'i-lucide-book-open' },
   { label: '公开', to: '/public', icon: 'i-lucide-globe-2' }

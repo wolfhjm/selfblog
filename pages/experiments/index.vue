@@ -90,7 +90,7 @@ const draft = reactive({
   description: '',
   status: 'active',
   visibility: 'private',
-  week_number: new Date().toISOString().slice(0, 10),
+  week_number: appDateString(),
   suggested_by_ai: 1
 })
 const visibilityItems = [{ label: '私密', value: 'private' }, { label: '公开', value: 'public' }]
@@ -111,7 +111,7 @@ watch(editing, (value) => {
     description: value.description || '',
     status: value.status || 'active',
     visibility: value.visibility || 'private',
-    week_number: value.week_number || new Date().toISOString().slice(0, 10),
+    week_number: value.week_number || appDateString(),
     suggested_by_ai: value.suggested_by_ai ?? 0
   })
 })

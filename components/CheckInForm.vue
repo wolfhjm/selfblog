@@ -65,17 +65,27 @@ const buttonIcon = computed(() => {
 
 watch(() => props.date, (date) => {
   form.date = date
+  syncInitial(props.initial)
 })
 
 watch(() => props.initial, (initial) => {
-  if (!initial) return
-
-  form.done_text = initial.done_text || ''
-  form.feeling_text = initial.feeling_text || ''
-  form.mood = initial.mood || 3
-  hasSavedCheckin.value = true
-  savedSnapshot.value = snapshotForm(form)
+  syncInitial(initial)
 })
+
+function syncInitial(initial?: any) {
+  if (initial) {
+    form.done_text = initial.done_text || ''
+    form.feeling_text = initial.feeling_text || ''
+    form.mood = initial.mood || 3
+    hasSavedCheckin.value = true
+  } else {
+    form.done_text = ''
+    form.feeling_text = ''
+    form.mood = 3
+    hasSavedCheckin.value = false
+  }
+  savedSnapshot.value = snapshotForm(form)
+}
 
 function snapshotForm(value: typeof form) {
   return JSON.stringify({

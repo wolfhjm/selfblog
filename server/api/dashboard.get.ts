@@ -1,7 +1,7 @@
 export default defineEventHandler((event) => {
   const user = requireUser(event)
   const db = getDb()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = appDateString()
 
   const checkin = db.prepare('SELECT * FROM checkins WHERE user_id = ? AND date = ?').get(user.id, today)
   const currentExperiment = db.prepare(`

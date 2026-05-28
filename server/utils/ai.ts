@@ -45,6 +45,22 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function compactNetworkError(error: any, endpoint: string) {
+  let host = 'AI 上游'
+  try {
+    host = new URL(endpoint).host
+  } catch {
+    // Keep the generic host label when endpoint parsing fails.
+  }
+
+  const code = error?.cause?.code || error?.code
+  if (code === 'UND_ERR_CONNECT_TIMEOUT' || /timeout/i.test(String(error?.message || ''))) {
+    return `连接 ${host} 超时，请稍后重试或切换 AI_BASE_URL/线路`
+  }
+
+  return `无法连接到 ${host}：${String(error?.message || '网络请求失败').replace(/\s+/g, ' ').slice(0, 160)}`
+}
+
 async function requestAiJson(path: 'chat/completions' | 'responses', body: Record<string, unknown>) {
   const config = useRuntimeConfig()
   const endpoint = aiEndpoint(path)
@@ -53,14 +69,25 @@ async function requestAiJson(path: 'chat/completions' | 'responses', body: Recor
   let lastDetail = ''
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.aiApiKey}`
-      },
-      body: JSON.stringify(body)
-    })
+    let response: Response
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.aiApiKey}`
+        },
+        body: JSON.stringify(body)
+      })
+    } catch (error: any) {
+      lastStatus = 504
+      lastStatusText = 'AI 网络连接失败'
+      lastDetail = compactNetworkError(error, endpoint)
+
+      if (attempt === 2) break
+      await sleep(600 * (attempt + 1))
+      continue
+    }
 
     if (response.ok) {
       return response.json()

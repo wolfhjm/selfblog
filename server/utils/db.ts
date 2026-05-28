@@ -141,7 +141,71 @@ function migrate(database: Database.Database) {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS cognitive_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      item_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      source_type TEXT,
+      source_id INTEGER,
+      verification_status TEXT NOT NULL DEFAULT 'unverified',
+      visibility TEXT NOT NULL DEFAULT 'private',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS object_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source_type TEXT NOT NULL,
+      source_id INTEGER NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id INTEGER NOT NULL,
+      relation_type TEXT NOT NULL DEFAULT 'related_to',
+      confidence REAL NOT NULL DEFAULT 0.7,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_by TEXT NOT NULL DEFAULT 'user',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, source_type, source_id, target_type, target_id, relation_type)
+    );
+
+    CREATE TABLE IF NOT EXISTS candidates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      candidate_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      source_type TEXT,
+      source_id INTEGER,
+      payload TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_by TEXT NOT NULL DEFAULT 'ai',
+      accepted_object_type TEXT,
+      accepted_object_id INTEGER,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_cognitive_items_user_type ON cognitive_items(user_id, item_type, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_object_links_source ON object_links(user_id, source_type, source_id);
+    CREATE INDEX IF NOT EXISTS idx_object_links_target ON object_links(user_id, target_type, target_id);
+    CREATE INDEX IF NOT EXISTS idx_candidates_user_status ON candidates(user_id, status, updated_at);
   `)
+
+  ensureColumn(database, 'principles', 'verification_status', "TEXT NOT NULL DEFAULT 'unverified'")
+  ensureColumn(database, 'principles', 'source_status', "TEXT NOT NULL DEFAULT 'unbound'")
+  ensureColumn(database, 'experiments', 'experiment_type', "TEXT NOT NULL DEFAULT 'single'")
+  ensureColumn(database, 'experiments', 'verification_result', "TEXT NOT NULL DEFAULT 'unknown'")
+  ensureColumn(database, 'experiments', 'linked_object_type', 'TEXT')
+  ensureColumn(database, 'experiments', 'linked_object_id', 'INTEGER')
+}
+
+function ensureColumn(database: Database.Database, table: string, column: string, definition: string) {
+  const columns = database.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+  if (columns.some((item) => item.name === column)) return
+  database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
 }
 
 function seed(database: Database.Database) {
@@ -208,6 +272,6 @@ function seed(database: Database.Database) {
     userId,
     '30 分钟陌生输入实验',
     '选择一个平时不会主动接触的主题，花 30 分钟读一篇文章、看一段访谈或体验一个小工具，然后记录一句“它让我意外的地方”。',
-    new Date().toISOString().slice(0, 10)
+    appDateString()
   )
 }
