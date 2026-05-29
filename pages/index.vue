@@ -30,7 +30,7 @@
       </SectionCard>
     </div>
 
-    <SectionCard title="打卡记录" description="最近 30 次状态会留在这里，方便回看自己的节奏。">
+    <SectionCard title="打卡记录" description="按时间回看自己的节奏，记录多了也可以继续翻页。">
       <div v-if="checkins?.length" class="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-100 bg-white">
         <div
           v-for="item in checkins"
@@ -59,6 +59,13 @@
         </div>
       </div>
       <p v-else class="text-sm text-slate-500">还没有历史打卡。保存一次今日打卡后会出现在这里。</p>
+      <PaginationBar
+        v-model:page="checkinPage"
+        class="mt-3"
+        :page-size="checkinData?.pageSize || listPageSize"
+        :total="checkinData?.total || 0"
+        :page-count="checkinData?.pageCount || 1"
+      />
     </SectionCard>
 
     <SectionCard title="日记小结" description="AI 会把打卡和对话整理成更完整的回看材料。">
@@ -79,6 +86,13 @@
         </article>
       </div>
       <p v-else class="text-sm text-slate-500">还没有日记小结。可以从探索页的一段对话里生成。</p>
+      <PaginationBar
+        v-model:page="journalPage"
+        class="mt-3"
+        :page-size="journalData?.pageSize || listPageSize"
+        :total="journalData?.total || 0"
+        :page-count="journalData?.pageCount || 1"
+      />
     </SectionCard>
 
     <div class="grid gap-4 md:grid-cols-3">
@@ -99,10 +113,23 @@
 </template>
 
 <script setup lang="ts">
+import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
+
 const toast = useToast()
 const { data: dashboard, refresh } = await useFetch<any>('/api/dashboard')
-const { data: checkins, refresh: refreshCheckins } = await useFetch<any[]>('/api/checkins')
-const { data: journals } = await useFetch<any[]>('/api/journals')
+const listPageSize = 10
+const checkinPage = ref(1)
+const journalPage = ref(1)
+const { data: checkinData, refresh: refreshCheckins } = await useFetch<PaginatedResponse<any>>('/api/checkins', {
+  query: { page: checkinPage, pageSize: listPageSize },
+  default: () => emptyPaginatedResponse<any>(listPageSize)
+})
+const { data: journalData } = await useFetch<PaginatedResponse<any>>('/api/journals', {
+  query: { page: journalPage, pageSize: listPageSize },
+  default: () => emptyPaginatedResponse<any>(listPageSize)
+})
+const checkins = computed(() => checkinData.value?.items || [])
+const journals = computed(() => journalData.value?.items || [])
 const startingConversationId = ref<number | null>(null)
 
 async function refreshCheckinData() {

@@ -20,6 +20,13 @@
           <p class="text-sm leading-6 text-slate-600">{{ item.description }}</p>
         </SectionCard>
       </div>
+      <PaginationBar
+        v-model:page="principlePage"
+        class="mt-3"
+        :page-size="principleData?.pageSize || pageSize"
+        :total="principleData?.total || 0"
+        :page-count="principleData?.pageCount || 1"
+      />
     </section>
 
     <section>
@@ -35,11 +42,31 @@
           <p class="text-sm leading-6 text-slate-600">{{ item.description }}</p>
         </SectionCard>
       </div>
+      <PaginationBar
+        v-model:page="experimentPage"
+        class="mt-3"
+        :page-size="experimentData?.pageSize || pageSize"
+        :total="experimentData?.total || 0"
+        :page-count="experimentData?.pageCount || 1"
+      />
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-const { data: principles } = await useFetch<any[]>('/api/principles?visibility=public', { default: () => [] })
-const { data: experiments } = await useFetch<any[]>('/api/experiments?visibility=public', { default: () => [] })
+import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
+
+const pageSize = 9
+const principlePage = ref(1)
+const experimentPage = ref(1)
+const { data: principleData } = await useFetch<PaginatedResponse<any>>('/api/principles', {
+  query: { visibility: 'public', page: principlePage, pageSize },
+  default: () => emptyPaginatedResponse<any>(pageSize)
+})
+const { data: experimentData } = await useFetch<PaginatedResponse<any>>('/api/experiments', {
+  query: { visibility: 'public', page: experimentPage, pageSize },
+  default: () => emptyPaginatedResponse<any>(pageSize)
+})
+const principles = computed(() => principleData.value?.items || [])
+const experiments = computed(() => experimentData.value?.items || [])
 </script>

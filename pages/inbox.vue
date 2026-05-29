@@ -22,8 +22,8 @@
       </div>
     </div>
 
-    <div v-if="filteredCandidates.length" class="grid gap-3 lg:grid-cols-2">
-      <SectionCard v-for="item in filteredCandidates" :key="item.id">
+    <div v-if="candidates.length" class="grid gap-3 lg:grid-cols-2">
+      <SectionCard v-for="item in candidates" :key="item.id">
         <template #title>
           <div class="flex items-start justify-between gap-3">
             <div>
@@ -61,6 +61,12 @@
     <SectionCard v-else title="没有待处理候选">
       <p class="text-sm text-slate-500">可以从探索页的一段对话里提取候选，或手动添加一条。</p>
     </SectionCard>
+    <PaginationBar
+      v-model:page="page"
+      :page-size="candidateData?.pageSize || pageSize"
+      :total="candidateData?.total || 0"
+      :page-count="candidateData?.pageCount || 1"
+    />
 
     <UModal v-model:open="modalOpen" :title="editing?.id ? '编辑候选' : '新增候选'">
       <template #body>
@@ -94,6 +100,7 @@
 
 <script setup lang="ts">
 import type { Candidate, CandidateType } from '~/types/app'
+import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
 
 type Draft = {
   candidate_type: CandidateType
@@ -105,8 +112,19 @@ type Draft = {
 }
 
 const toast = useToast()
-const { data: candidates, refresh } = await useFetch<Candidate[]>('/api/candidates', { default: () => [] })
 const activeType = ref<CandidateType | 'all'>('all')
+const page = ref(1)
+const pageSize = 12
+const typeQuery = computed(() => activeType.value === 'all' ? undefined : activeType.value)
+const { data: candidateData, refresh } = await useFetch<PaginatedResponse<Candidate>>('/api/candidates', {
+  query: computed(() => ({
+    page: page.value,
+    pageSize,
+    ...(typeQuery.value ? { type: typeQuery.value } : {})
+  })),
+  default: () => emptyPaginatedResponse<Candidate>(pageSize)
+})
+const candidates = computed(() => candidateData.value?.items || [])
 const modalOpen = ref(false)
 const editing = ref<Candidate | null>(null)
 const actingId = ref<number | null>(null)
@@ -129,9 +147,8 @@ const typeItems: Array<{ label: string, value: CandidateType }> = [
 ]
 const typeFilters: Array<{ label: string, value: CandidateType | 'all' }> = [{ label: '全部', value: 'all' }, ...typeItems]
 
-const filteredCandidates = computed(() => {
-  if (activeType.value === 'all') return candidates.value
-  return candidates.value.filter((item) => item.candidate_type === activeType.value)
+watch(activeType, () => {
+  page.value = 1
 })
 
 function openCreate() {
@@ -173,6 +190,7 @@ async function saveCandidate() {
   }
   modalOpen.value = false
   await refresh()
+  page.value = 1
   toast.add({ title: '候选已保存', color: 'success' })
 }
 
@@ -181,6 +199,7 @@ async function acceptCandidate(item: Candidate) {
   try {
     await $fetch(`/api/candidates/${item.id}/accept`, { method: 'POST' })
     await refresh()
+    if (!candidates.value.length && page.value > 1) page.value -= 1
     toast.add({ title: '已确认入库', color: 'success' })
   } catch (err: any) {
     toast.add({ title: '确认失败', description: err?.statusMessage || err?.message || '请稍后再试', color: 'error' })
@@ -194,6 +213,7 @@ async function dismissCandidate(item: Candidate) {
   try {
     await $fetch(`/api/candidates/${item.id}`, { method: 'DELETE' })
     await refresh()
+    if (!candidates.value.length && page.value > 1) page.value -= 1
     toast.add({ title: '已丢弃', color: 'success' })
   } finally {
     actingId.value = null

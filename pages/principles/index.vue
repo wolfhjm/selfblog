@@ -25,6 +25,12 @@
         </div>
       </SectionCard>
     </div>
+    <PaginationBar
+      v-model:page="page"
+      :page-size="principleData?.pageSize || pageSize"
+      :total="principleData?.total || 0"
+      :page-count="principleData?.pageCount || 1"
+    />
 
     <UModal v-model:open="modalOpen" title="编辑原则">
       <template #body>
@@ -35,7 +41,15 @@
 </template>
 
 <script setup lang="ts">
-const { data: principles, refresh } = await useFetch<any[]>('/api/principles', { default: () => [] })
+import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
+
+const page = ref(1)
+const pageSize = 12
+const { data: principleData, refresh } = await useFetch<PaginatedResponse<any>>('/api/principles', {
+  query: { page, pageSize },
+  default: () => emptyPaginatedResponse<any>(pageSize)
+})
+const principles = computed(() => principleData.value?.items || [])
 const editing = ref<any | null>(null)
 const modalOpen = computed({
   get: () => editing.value !== null,
@@ -48,6 +62,7 @@ function labelCategory(category: string) {
 
 async function onSaved() {
   editing.value = null
+  page.value = 1
   await refresh()
 }
 </script>

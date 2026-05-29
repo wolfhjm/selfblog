@@ -69,6 +69,13 @@
             />
           </div>
         </div>
+        <PaginationBar
+          v-model:page="conversationPage"
+          class="mt-3"
+          :page-size="conversationData?.pageSize || conversationPageSize"
+          :total="conversationData?.total || 0"
+          :page-count="conversationData?.pageCount || 1"
+        />
       </div>
     </aside>
 
@@ -184,9 +191,17 @@
 </template>
 
 <script setup lang="ts">
+import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
+
 const toast = useToast()
 const route = useRoute()
-const { data: conversations, refresh } = await useFetch<any[]>('/api/conversations', { default: () => [] })
+const conversationPage = ref(1)
+const conversationPageSize = 20
+const { data: conversationData, refresh } = await useFetch<PaginatedResponse<any>>('/api/conversations', {
+  query: { page: conversationPage, pageSize: conversationPageSize },
+  default: () => emptyPaginatedResponse<any>(conversationPageSize)
+})
+const conversations = computed(() => conversationData.value?.items || [])
 const draft = ref('')
 const messages = ref<any[]>([])
 const activeConversationId = ref<number | null>(null)
@@ -361,6 +376,10 @@ async function deleteConversation() {
       await navigateTo('/explore', { replace: true })
     }
     await refresh()
+    if (!conversations.value.length && conversationPage.value > 1) {
+      conversationPage.value -= 1
+      await refresh()
+    }
     deleteOpen.value = false
     deletingConversation.value = null
     toast.add({ title: '对话已删除', color: 'success' })

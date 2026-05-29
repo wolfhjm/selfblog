@@ -47,6 +47,13 @@
           </button>
           <p v-if="!filteredItems.length" class="rounded-lg bg-white p-3 text-sm text-slate-500">还没有符合条件的对象。</p>
         </div>
+        <PaginationBar
+          v-model:page="page"
+          class="mt-3"
+          :page-size="itemData?.pageSize || pageSize"
+          :total="itemData?.total || 0"
+          :page-count="itemData?.pageCount || 1"
+        />
       </aside>
 
       <section class="min-w-0 space-y-4">
@@ -151,6 +158,7 @@
 
 <script setup lang="ts">
 import type { CognitiveItem, CognitiveItemType, ObjectLink, VerificationStatus, Visibility } from '~/types/app'
+import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
 
 type Draft = {
   item_type: CognitiveItemType
@@ -163,10 +171,20 @@ type Draft = {
 }
 
 const toast = useToast()
-const { data: items, refresh: refreshItems } = await useFetch<CognitiveItem[]>('/api/cognitive-items', { default: () => [] })
-const { data: links, refresh: refreshLinks } = await useFetch<ObjectLink[]>('/api/object-links', { default: () => [] })
 const search = ref('')
 const activeType = ref<CognitiveItemType | 'all'>('all')
+const page = ref(1)
+const pageSize = 15
+const typeQuery = computed(() => activeType.value === 'all' ? undefined : activeType.value)
+const { data: itemData, refresh: refreshItems } = await useFetch<PaginatedResponse<CognitiveItem>>('/api/cognitive-items', {
+  query: computed(() => ({
+    page: page.value,
+    pageSize,
+    ...(typeQuery.value ? { type: typeQuery.value } : {})
+  })),
+  default: () => emptyPaginatedResponse<CognitiveItem>(pageSize)
+})
+const items = computed(() => itemData.value?.items || [])
 const selectedId = ref<number | null>(null)
 const editing = ref<CognitiveItem | null>(null)
 const itemModalOpen = ref(false)
@@ -222,13 +240,15 @@ const filteredItems = computed(() => {
 })
 
 const selected = computed(() => items.value.find((item) => item.id === selectedId.value) || filteredItems.value[0] || null)
-const selectedLinks = computed(() => {
-  if (!selected.value) return []
-  return links.value.filter((link) => (
-    (link.source_type === selected.value?.item_type && link.source_id === selected.value?.id)
-    || (link.target_type === selected.value?.item_type && link.target_id === selected.value?.id)
-  ))
+const linkQuery = computed(() => selected.value
+  ? { source_type: selected.value.item_type, source_id: selected.value.id }
+  : undefined)
+const { data: links, refresh: refreshLinks } = await useFetch<ObjectLink[]>('/api/object-links', {
+  query: linkQuery,
+  default: () => [],
+  watch: [linkQuery]
 })
+const selectedLinks = computed(() => links.value || [])
 const linkTargetOptions = computed(() => items.value
   .filter((item) => !selected.value || item.id !== selected.value.id || item.item_type !== selected.value.item_type)
   .map((item) => ({ label: `${itemTypeLabel(item.item_type)} / ${item.title}`, value: item.id })))
@@ -239,6 +259,8 @@ watch(selected, () => {
 
 function setActiveType(type: CognitiveItemType | 'all') {
   activeType.value = type
+  page.value = 1
+  selectedId.value = null
 }
 
 function openCreate() {
@@ -284,6 +306,7 @@ async function saveItem() {
   }
   itemModalOpen.value = false
   await refreshItems()
+  if (!items.value.some((item) => item.id === selectedId.value)) page.value = 1
   toast.add({ title: '认知对象已保存', color: 'success' })
 }
 
@@ -292,6 +315,7 @@ async function deleteSelected() {
   await $fetch(`/api/cognitive-items/${selected.value.id}`, { method: 'DELETE' })
   selectedId.value = null
   await Promise.all([refreshItems(), refreshLinks()])
+  if (!items.value.length && page.value > 1) page.value -= 1
   toast.add({ title: '已删除', color: 'success' })
 }
 
@@ -334,8 +358,9 @@ function relationLabel(type: string) {
 }
 
 function countByType(type: string) {
-  if (type === 'all') return `${items.value.length} 条`
-  return `${items.value.filter((item) => item.item_type === type).length} 条`
+  if (type === activeType.value) return `${itemData.value?.total || 0} 条`
+  if (type === 'all' && activeType.value === 'all') return `${itemData.value?.total || 0} 条`
+  return ''
 }
 
 function linkPeerLabel(link: ObjectLink) {

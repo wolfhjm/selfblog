@@ -3,9 +3,14 @@ export default defineEventHandler((event) => {
   const query = getQuery(event)
   const type = typeof query.type === 'string' ? query.type : ''
   const db = getDb()
+  const pagination = getPagination(event)
 
   if (type) {
-    return db.prepare(`
+    const total = (db.prepare(`
+      SELECT COUNT(*) AS count FROM cognitive_items
+      WHERE user_id = ? AND item_type = ?
+    `).get(user.id, type) as { count: number }).count
+    const items = db.prepare(`
       SELECT
         cognitive_items.*,
         (
@@ -21,10 +26,17 @@ export default defineEventHandler((event) => {
       FROM cognitive_items
       WHERE user_id = ? AND item_type = ?
       ORDER BY updated_at DESC, created_at DESC
-    `).all(user.id, type)
+      LIMIT ? OFFSET ?
+    `).all(user.id, type, pagination.pageSize, pagination.offset)
+
+    return paginatedResult(items, total, pagination)
   }
 
-  return db.prepare(`
+  const total = (db.prepare(`
+    SELECT COUNT(*) AS count FROM cognitive_items
+    WHERE user_id = ?
+  `).get(user.id) as { count: number }).count
+  const items = db.prepare(`
     SELECT
       cognitive_items.*,
       (
@@ -40,5 +52,8 @@ export default defineEventHandler((event) => {
     FROM cognitive_items
     WHERE user_id = ?
     ORDER BY updated_at DESC, created_at DESC
-  `).all(user.id)
+    LIMIT ? OFFSET ?
+  `).all(user.id, pagination.pageSize, pagination.offset)
+
+  return paginatedResult(items, total, pagination)
 })

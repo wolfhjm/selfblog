@@ -39,6 +39,12 @@
         </div>
       </SectionCard>
     </div>
+    <PaginationBar
+      v-model:page="page"
+      :page-size="experimentData?.pageSize || pageSize"
+      :total="experimentData?.total || 0"
+      :page-count="experimentData?.pageCount || 1"
+    />
 
     <UModal v-model:open="draftOpen" title="确认实验">
       <template #body>
@@ -79,8 +85,16 @@
 </template>
 
 <script setup lang="ts">
+import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
+
 const toast = useToast()
-const { data: experiments, refresh } = await useFetch<any[]>('/api/experiments', { default: () => [] })
+const page = ref(1)
+const pageSize = 10
+const { data: experimentData, refresh } = await useFetch<PaginatedResponse<any>>('/api/experiments', {
+  query: { page, pageSize },
+  default: () => emptyPaginatedResponse<any>(pageSize)
+})
+const experiments = computed(() => experimentData.value?.items || [])
 const suggesting = ref(false)
 const error = ref('')
 const editing = ref<any | null>(null)
@@ -147,6 +161,7 @@ async function saveDraft() {
     await $fetch('/api/experiments', { method: 'POST', body: draft })
   }
   editing.value = null
+  page.value = 1
   await refresh()
   toast.add({ title: '实验已保存', color: 'success' })
 }
@@ -159,6 +174,7 @@ async function saveReview() {
   if (!review.value) return
   await $fetch(`/api/experiments/${review.value.id}`, { method: 'PUT', body: review.value })
   review.value = null
+  page.value = 1
   await refresh()
   toast.add({ title: '结果已记录', color: 'success' })
 }
