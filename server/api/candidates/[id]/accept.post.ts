@@ -28,9 +28,17 @@ export default defineEventHandler((event) => {
           suggested_by_ai,
           experiment_type,
           linked_object_type,
-          linked_object_id
+          linked_object_id,
+          target_behavior,
+          motivation,
+          ability,
+          prompt,
+          tiny_version,
+          success_criterion,
+          opportunity,
+          health_context
         )
-        VALUES (?, ?, ?, 'draft', ?, 'private', 1, ?, ?, ?)
+        VALUES (?, ?, ?, 'draft', ?, 'private', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         user.id,
         candidate.title,
@@ -38,7 +46,15 @@ export default defineEventHandler((event) => {
         appDateString(),
         String(payload.experiment_type || 'single'),
         payload.linked_object_type || null,
-        payload.linked_object_id || null
+        payload.linked_object_id || null,
+        String(payload.target_behavior || ''),
+        String(payload.motivation || ''),
+        String(payload.ability || ''),
+        String(payload.prompt || ''),
+        String(payload.tiny_version || ''),
+        String(payload.success_criterion || ''),
+        String(payload.opportunity || ''),
+        String(payload.health_context || '')
       )
       acceptedObjectType = 'experiment'
       acceptedObjectId = Number(result.lastInsertRowid)

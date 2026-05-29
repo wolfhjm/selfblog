@@ -138,6 +138,15 @@ function migrate(database: Database.Database) {
       barrier TEXT NOT NULL DEFAULT '',
       visibility TEXT NOT NULL DEFAULT 'private',
       suggested_by_ai INTEGER NOT NULL DEFAULT 0,
+      target_behavior TEXT NOT NULL DEFAULT '',
+      motivation TEXT NOT NULL DEFAULT '',
+      ability TEXT NOT NULL DEFAULT '',
+      prompt TEXT NOT NULL DEFAULT '',
+      tiny_version TEXT NOT NULL DEFAULT '',
+      success_criterion TEXT NOT NULL DEFAULT '',
+      failure_reason TEXT NOT NULL DEFAULT '',
+      opportunity TEXT NOT NULL DEFAULT '',
+      health_context TEXT NOT NULL DEFAULT '',
       done_at TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -202,6 +211,15 @@ function migrate(database: Database.Database) {
   ensureColumn(database, 'experiments', 'verification_result', "TEXT NOT NULL DEFAULT 'unknown'")
   ensureColumn(database, 'experiments', 'linked_object_type', 'TEXT')
   ensureColumn(database, 'experiments', 'linked_object_id', 'INTEGER')
+  ensureColumn(database, 'experiments', 'target_behavior', "TEXT NOT NULL DEFAULT ''")
+  ensureColumn(database, 'experiments', 'motivation', "TEXT NOT NULL DEFAULT ''")
+  ensureColumn(database, 'experiments', 'ability', "TEXT NOT NULL DEFAULT ''")
+  ensureColumn(database, 'experiments', 'prompt', "TEXT NOT NULL DEFAULT ''")
+  ensureColumn(database, 'experiments', 'tiny_version', "TEXT NOT NULL DEFAULT ''")
+  ensureColumn(database, 'experiments', 'success_criterion', "TEXT NOT NULL DEFAULT ''")
+  ensureColumn(database, 'experiments', 'failure_reason', "TEXT NOT NULL DEFAULT ''")
+  ensureColumn(database, 'experiments', 'opportunity', "TEXT NOT NULL DEFAULT ''")
+  ensureColumn(database, 'experiments', 'health_context', "TEXT NOT NULL DEFAULT ''")
 }
 
 function ensureColumn(database: Database.Database, table: string, column: string, definition: string) {

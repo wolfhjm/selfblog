@@ -7,7 +7,17 @@ const schema = z.object({
   week_number: z.string().default(''),
   reflection: z.string().default(''),
   barrier: z.string().default(''),
-  visibility: z.enum(['private', 'public'])
+  visibility: z.enum(['private', 'public']),
+  target_behavior: z.string().default(''),
+  motivation: z.string().default(''),
+  ability: z.string().default(''),
+  prompt: z.string().default(''),
+  tiny_version: z.string().default(''),
+  success_criterion: z.string().default(''),
+  failure_reason: z.string().default(''),
+  opportunity: z.string().default(''),
+  health_context: z.string().default(''),
+  verification_result: z.string().default('unknown')
 })
 
 export default defineEventHandler(async (event) => {
@@ -24,6 +34,16 @@ export default defineEventHandler(async (event) => {
       reflection = @reflection,
       barrier = @barrier,
       visibility = @visibility,
+      target_behavior = @target_behavior,
+      motivation = @motivation,
+      ability = @ability,
+      prompt = @prompt,
+      tiny_version = @tiny_version,
+      success_criterion = @success_criterion,
+      failure_reason = @failure_reason,
+      opportunity = @opportunity,
+      health_context = @health_context,
+      verification_result = @verification_result,
       done_at = @done_at,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = @id AND user_id = @user_id

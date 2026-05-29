@@ -28,9 +28,21 @@
           </div>
         </template>
         <p class="text-sm leading-6 text-slate-600">{{ item.description }}</p>
+        <div v-if="mapDetails(item).length" class="mt-3 space-y-2 rounded-lg border border-slate-100 bg-white p-3 text-sm">
+          <div
+            v-for="detail in mapDetails(item)"
+            :key="detail.label"
+            class="grid gap-1 md:grid-cols-[5.5rem_minmax(0,1fr)]"
+          >
+            <span class="font-medium text-slate-500">{{ detail.label }}</span>
+            <span class="leading-6 text-slate-700">{{ detail.value }}</span>
+          </div>
+        </div>
         <div v-if="item.reflection || item.barrier" class="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
           <p v-if="item.reflection">复盘：{{ item.reflection }}</p>
           <p v-if="item.barrier">阻碍：{{ item.barrier }}</p>
+          <p v-if="item.failure_reason">缺口：{{ failureReasonLabel(item.failure_reason) }}</p>
+          <p v-if="item.verification_result">验证：{{ verificationResultLabel(item.verification_result) }}</p>
         </div>
         <div class="mt-4 flex flex-wrap gap-2">
           <UButton color="primary" variant="soft" icon="i-lucide-check" @click="openReview(item, 'done')">完成</UButton>
@@ -55,6 +67,37 @@
           <UFormField label="描述">
             <UTextarea v-model="draft.description" autoresize class="w-full" />
           </UFormField>
+          <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+            <p class="text-sm font-medium text-slate-700">Fogg 行为设计</p>
+            <div class="mt-3 grid gap-3 md:grid-cols-2">
+              <UFormField label="目标行为">
+                <UInput v-model="draft.target_behavior" placeholder="具体到能看到的一次行为" class="w-full" />
+              </UFormField>
+              <UFormField label="触发提示">
+                <UInput v-model="draft.prompt" placeholder="什么时候、看到什么就做" class="w-full" />
+              </UFormField>
+              <UFormField label="动机">
+                <UTextarea v-model="draft.motivation" autoresize class="w-full" />
+              </UFormField>
+              <UFormField label="能力/难度">
+                <UTextarea v-model="draft.ability" autoresize class="w-full" />
+              </UFormField>
+              <UFormField label="更小版本">
+                <UInput v-model="draft.tiny_version" placeholder="做不到时退一步做什么" class="w-full" />
+              </UFormField>
+              <UFormField label="完成标准">
+                <UInput v-model="draft.success_criterion" placeholder="怎样算完成" class="w-full" />
+              </UFormField>
+            </div>
+          </div>
+          <div class="grid gap-3 md:grid-cols-2">
+            <UFormField label="机会/环境">
+              <UTextarea v-model="draft.opportunity" autoresize class="w-full" />
+            </UFormField>
+            <UFormField label="健康背景">
+              <UTextarea v-model="draft.health_context" autoresize class="w-full" />
+            </UFormField>
+          </div>
           <div class="grid gap-3 md:grid-cols-2">
             <UFormField label="可见性">
               <USelect v-model="draft.visibility" :items="visibilityItems" class="w-full" />
@@ -77,6 +120,14 @@
           <UFormField v-else label="是什么挡住了你">
             <UTextarea v-model="review.barrier" autoresize placeholder="不是责备，只是把阻力看清楚。" class="w-full" />
           </UFormField>
+          <div class="grid gap-3 md:grid-cols-2">
+            <UFormField label="主要缺口">
+              <USelect v-model="review.failure_reason" :items="failureReasonItems" class="w-full" />
+            </UFormField>
+            <UFormField label="验证结果">
+              <USelect v-model="review.verification_result" :items="verificationResultItems" class="w-full" />
+            </UFormField>
+          </div>
           <UButton type="submit" icon="i-lucide-save" block>保存</UButton>
         </form>
       </template>
@@ -105,10 +156,33 @@ const draft = reactive({
   status: 'active',
   visibility: 'private',
   week_number: appDateString(),
-  suggested_by_ai: 1
+  suggested_by_ai: 1,
+  target_behavior: '',
+  motivation: '',
+  ability: '',
+  prompt: '',
+  tiny_version: '',
+  success_criterion: '',
+  opportunity: '',
+  health_context: ''
 })
 const visibilityItems = [{ label: '私密', value: 'private' }, { label: '公开', value: 'public' }]
 const statusItems = [{ label: '进行中', value: 'active' }, { label: '草稿', value: 'draft' }]
+const failureReasonItems = [
+  { label: '未选择', value: '' },
+  { label: '动机不足', value: 'motivation' },
+  { label: '能力/难度不足', value: 'ability' },
+  { label: '缺少提示', value: 'prompt' },
+  { label: '机会/环境不足', value: 'opportunity' },
+  { label: '健康/精力不足', value: 'health' }
+]
+const verificationResultItems = [
+  { label: '未知', value: 'unknown' },
+  { label: '支持原假设', value: 'supports' },
+  { label: '部分支持', value: 'partial' },
+  { label: '反驳原假设', value: 'contradicts' },
+  { label: '需要调整', value: 'needs_revision' }
+]
 const draftOpen = computed({
   get: () => editing.value !== null,
   set: (value) => { if (!value) editing.value = null }
@@ -126,7 +200,15 @@ watch(editing, (value) => {
     status: value.status || 'active',
     visibility: value.visibility || 'private',
     week_number: value.week_number || appDateString(),
-    suggested_by_ai: value.suggested_by_ai ?? 0
+    suggested_by_ai: value.suggested_by_ai ?? 0,
+    target_behavior: value.target_behavior || '',
+    motivation: value.motivation || '',
+    ability: value.ability || '',
+    prompt: value.prompt || '',
+    tiny_version: value.tiny_version || '',
+    success_criterion: value.success_criterion || '',
+    opportunity: value.opportunity || '',
+    health_context: value.health_context || ''
   })
 })
 
@@ -136,6 +218,27 @@ function statusLabel(status: string) {
 
 function statusColor(status: string) {
   return status === 'done' ? 'success' : status === 'skipped' ? 'warning' : status === 'active' ? 'primary' : 'neutral'
+}
+
+function mapDetails(item: any) {
+  return [
+    { label: '目标行为', value: item.target_behavior },
+    { label: '动机', value: item.motivation },
+    { label: '能力', value: item.ability },
+    { label: '提示', value: item.prompt },
+    { label: '更小版本', value: item.tiny_version },
+    { label: '完成标准', value: item.success_criterion },
+    { label: '机会', value: item.opportunity },
+    { label: '健康背景', value: item.health_context }
+  ].filter((detail) => String(detail.value || '').trim())
+}
+
+function failureReasonLabel(value: string) {
+  return ({ motivation: '动机不足', ability: '能力/难度不足', prompt: '缺少提示', opportunity: '机会/环境不足', health: '健康/精力不足' } as Record<string, string>)[value] || value
+}
+
+function verificationResultLabel(value: string) {
+  return ({ unknown: '未知', supports: '支持原假设', partial: '部分支持', contradicts: '反驳原假设', needs_revision: '需要调整' } as Record<string, string>)[value] || value
 }
 
 async function suggest() {
@@ -167,7 +270,12 @@ async function saveDraft() {
 }
 
 function openReview(item: any, status: 'done' | 'skipped') {
-  review.value = { ...item, status }
+  review.value = {
+    ...item,
+    status,
+    failure_reason: item.failure_reason || '',
+    verification_result: item.verification_result || (status === 'done' ? 'supports' : 'needs_revision')
+  }
 }
 
 async function saveReview() {

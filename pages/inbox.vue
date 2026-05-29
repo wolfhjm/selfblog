@@ -231,11 +231,23 @@ async function analyzeCandidate(item: Candidate) {
       `标题：${item.title}`,
       `内容：${item.content || '无'}`,
       payload.objective_context ? `客观环境：${payload.objective_context}` : '',
-      payload.event_detail ? `事件：${payload.event_detail}` : '',
+      payload.event_detail || payload.activating_event ? `事件：${payload.event_detail || payload.activating_event}` : '',
       payload.emotion ? `感受：${payload.emotion}` : '',
-      payload.interpretation ? `当时解释：${payload.interpretation}` : '',
+      payload.interpretation || payload.belief_or_interpretation ? `当时解释：${payload.interpretation || payload.belief_or_interpretation}` : '',
+      payload.consequence ? `后果：${payload.consequence}` : '',
+      payload.evidence_for ? `支持证据：${payload.evidence_for}` : '',
+      payload.evidence_against ? `反例：${payload.evidence_against}` : '',
+      payload.reframe ? `新解释：${payload.reframe}` : '',
       payload.hidden_need ? `可能需求：${payload.hidden_need}` : '',
       payload.hidden_fear ? `可能恐惧：${payload.hidden_fear}` : '',
+      payload.target_behavior ? `目标行为：${payload.target_behavior}` : '',
+      payload.motivation ? `动机：${payload.motivation}` : '',
+      payload.ability ? `能力/难度：${payload.ability}` : '',
+      payload.prompt ? `提示：${payload.prompt}` : '',
+      payload.tiny_version ? `更小版本：${payload.tiny_version}` : '',
+      payload.success_criterion ? `完成标准：${payload.success_criterion}` : '',
+      payload.opportunity ? `机会/环境：${payload.opportunity}` : '',
+      payload.health_context ? `健康背景：${payload.health_context}` : '',
       payload.raw_evidence ? `原文证据：${payload.raw_evidence}` : '',
       questions.length ? `建议追问：\n${questions.map((question: string) => `- ${question}`).join('\n')}` : '',
       '',
@@ -246,7 +258,8 @@ async function analyzeCandidate(item: Candidate) {
       method: 'POST',
       body: {
         title: `继续分析：${item.title}`.slice(0, 32),
-        message
+        message,
+        mode: 'structured'
       }
     })
     await navigateTo(`/explore?conversation=${result.conversationId}`)
@@ -277,12 +290,26 @@ function payloadDetails(item: Candidate) {
   const payload = parsePayload(item.payload)
   return [
     { label: '客观环境', value: payload.objective_context },
-    { label: '事件', value: payload.event_detail },
+    { label: 'ABC 事件', value: payload.activating_event || payload.event_detail },
+    { label: '事件细节', value: payload.event_detail },
     { label: '身体信号', value: payload.body_signal },
     { label: '感受', value: payload.emotion },
+    { label: 'ABC 信念', value: payload.belief_or_interpretation || payload.interpretation },
     { label: '解释', value: payload.interpretation },
+    { label: 'ABC 后果', value: payload.consequence },
+    { label: '支持证据', value: payload.evidence_for },
+    { label: '反例', value: payload.evidence_against },
+    { label: '新解释', value: payload.reframe },
     { label: '隐藏需求', value: payload.hidden_need },
     { label: '隐藏恐惧', value: payload.hidden_fear },
+    { label: '目标行为', value: payload.target_behavior },
+    { label: '动机', value: payload.motivation },
+    { label: '能力', value: payload.ability },
+    { label: '提示', value: payload.prompt },
+    { label: '更小版本', value: payload.tiny_version },
+    { label: '完成标准', value: payload.success_criterion },
+    { label: '机会', value: payload.opportunity },
+    { label: '健康背景', value: payload.health_context },
     { label: '原文证据', value: payload.raw_evidence }
   ].filter((detail) => String(detail.value || '').trim())
 }

@@ -77,6 +77,15 @@ export interface Experiment {
   barrier: string
   visibility: Visibility
   suggested_by_ai: number
+  target_behavior: string
+  motivation: string
+  ability: string
+  prompt: string
+  tiny_version: string
+  success_criterion: string
+  failure_reason: string
+  opportunity: string
+  health_context: string
   experiment_type?: string
   verification_result?: string
   linked_object_type?: string | null
