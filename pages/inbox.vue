@@ -34,8 +34,25 @@
           </div>
         </template>
         <p class="whitespace-pre-wrap text-sm leading-6 text-slate-600">{{ item.content || '没有补充内容。' }}</p>
+        <div v-if="payloadDetails(item).length" class="mt-4 space-y-2 rounded-lg bg-slate-50 p-3">
+          <div
+            v-for="detail in payloadDetails(item)"
+            :key="detail.label"
+            class="grid gap-1 text-sm md:grid-cols-[5.5rem_minmax(0,1fr)]"
+          >
+            <span class="font-medium text-slate-500">{{ detail.label }}</span>
+            <span class="whitespace-pre-wrap leading-6 text-slate-700">{{ detail.value }}</span>
+          </div>
+        </div>
+        <div v-if="followUpQuestions(item).length" class="mt-3 rounded-lg border border-teal-100 bg-teal-50 p-3">
+          <p class="text-sm font-medium text-teal-900">可继续追问</p>
+          <ul class="mt-2 space-y-1 text-sm leading-6 text-teal-800">
+            <li v-for="question in followUpQuestions(item)" :key="question">- {{ question }}</li>
+          </ul>
+        </div>
         <div class="mt-4 flex flex-wrap gap-2">
           <UButton color="primary" variant="soft" icon="i-lucide-check" :loading="actingId === item.id" @click="acceptCandidate(item)">确认入库</UButton>
+          <UButton color="neutral" variant="soft" icon="i-lucide-message-circle" :loading="actingId === item.id" @click="analyzeCandidate(item)">继续分析</UButton>
           <UButton color="neutral" variant="soft" icon="i-lucide-pencil" @click="openEdit(item)">编辑</UButton>
           <UButton color="neutral" variant="ghost" icon="i-lucide-trash-2" :loading="actingId === item.id" @click="dismissCandidate(item)">丢弃</UButton>
         </div>
@@ -183,6 +200,43 @@ async function dismissCandidate(item: Candidate) {
   }
 }
 
+async function analyzeCandidate(item: Candidate) {
+  actingId.value = item.id
+  try {
+    const payload = parsePayload(item.payload)
+    const questions = followUpQuestions(item)
+    const message = [
+      '我想继续分析这条候选，不急着下结论，请你围绕具体事件、感受和隐藏动机追问我。',
+      `候选类型：${typeLabel(item.candidate_type)}`,
+      `标题：${item.title}`,
+      `内容：${item.content || '无'}`,
+      payload.objective_context ? `客观环境：${payload.objective_context}` : '',
+      payload.event_detail ? `事件：${payload.event_detail}` : '',
+      payload.emotion ? `感受：${payload.emotion}` : '',
+      payload.interpretation ? `当时解释：${payload.interpretation}` : '',
+      payload.hidden_need ? `可能需求：${payload.hidden_need}` : '',
+      payload.hidden_fear ? `可能恐惧：${payload.hidden_fear}` : '',
+      payload.raw_evidence ? `原文证据：${payload.raw_evidence}` : '',
+      questions.length ? `建议追问：\n${questions.map((question: string) => `- ${question}`).join('\n')}` : '',
+      '',
+      '请先帮我指出这条候选里证据最强和最模糊的部分，然后只问一个最值得继续回答的问题。'
+    ].filter(Boolean).join('\n')
+
+    const result = await $fetch<any>('/api/conversations', {
+      method: 'POST',
+      body: {
+        title: `继续分析：${item.title}`.slice(0, 32),
+        message
+      }
+    })
+    await navigateTo(`/explore?conversation=${result.conversationId}`)
+  } catch (err: any) {
+    toast.add({ title: '创建分析对话失败', description: err?.statusMessage || err?.message || '请稍后再试', color: 'error' })
+  } finally {
+    actingId.value = null
+  }
+}
+
 function typeLabel(type: string) {
   return ({ pattern: '规律', case: '小事件', reaction: '感受/反应', lesson: '经验教训', insight: '洞察', experiment: '实验建议' } as Record<string, string>)[type] || type
 }
@@ -197,5 +251,26 @@ function parsePayload(payload: string) {
   } catch {
     return {}
   }
+}
+
+function payloadDetails(item: Candidate) {
+  const payload = parsePayload(item.payload)
+  return [
+    { label: '客观环境', value: payload.objective_context },
+    { label: '事件', value: payload.event_detail },
+    { label: '身体信号', value: payload.body_signal },
+    { label: '感受', value: payload.emotion },
+    { label: '解释', value: payload.interpretation },
+    { label: '隐藏需求', value: payload.hidden_need },
+    { label: '隐藏恐惧', value: payload.hidden_fear },
+    { label: '原文证据', value: payload.raw_evidence }
+  ].filter((detail) => String(detail.value || '').trim())
+}
+
+function followUpQuestions(item: Candidate) {
+  const payload = parsePayload(item.payload)
+  return Array.isArray(payload.follow_up_questions)
+    ? payload.follow_up_questions.filter((question: unknown) => String(question || '').trim()).slice(0, 3)
+    : []
 }
 </script>
