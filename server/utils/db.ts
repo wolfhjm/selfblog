@@ -91,6 +91,7 @@ function migrate(database: Database.Database) {
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       title TEXT NOT NULL DEFAULT '新的自我探索',
       type TEXT NOT NULL DEFAULT 'explore',
+      mode TEXT NOT NULL DEFAULT 'explore',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -196,6 +197,7 @@ function migrate(database: Database.Database) {
 
   ensureColumn(database, 'principles', 'verification_status', "TEXT NOT NULL DEFAULT 'unverified'")
   ensureColumn(database, 'principles', 'source_status', "TEXT NOT NULL DEFAULT 'unbound'")
+  ensureColumn(database, 'conversations', 'mode', "TEXT NOT NULL DEFAULT 'explore'")
   ensureColumn(database, 'experiments', 'experiment_type', "TEXT NOT NULL DEFAULT 'single'")
   ensureColumn(database, 'experiments', 'verification_result', "TEXT NOT NULL DEFAULT 'unknown'")
   ensureColumn(database, 'experiments', 'linked_object_type', 'TEXT')

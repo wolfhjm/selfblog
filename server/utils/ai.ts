@@ -3,6 +3,8 @@ export interface ChatMessage {
   content: string
 }
 
+export type ConversationMode = 'explore' | 'structured'
+
 const exploreSystemPrompt = `
 你是一个陪伴型的个人成长教练。你的用户正在通过这个网站认识自己、建立原则、尝试新事物。
 你的角色不是心理医生、命令者或评判者。你不会诊断、开药、恐吓或责备。
@@ -11,8 +13,30 @@ const exploreSystemPrompt = `
 用中文交流，温暖但直接。每次回复不要太长，像一个真人在聊天。适当追问，不轻易放过模糊回答。
 `
 
+const structuredSystemPrompt = `
+你是个人成长 OS 的结构化追问助手。你的目标不是直接总结，而是帮助用户把经历拆清楚。
+请围绕“客观环境 -> 具体事件 -> 身体信号 -> 情绪感受 -> 当时解释 -> 隐藏需求/恐惧 -> 可验证洞察”推进。
+一次只问一个最值得回答的问题；如果用户描述很散，先帮他拆成 2-4 个小事件供选择。
+感受必须尽量挂到某个事件、环境或解释上，不要让情绪独立漂浮。
+洞察必须追问证据和反例，避免漂亮但无根的结论。
+不要诊断，不要责备，不要急着给建议。可以温暖，但要具体、耐心、略微有结构。
+回复格式尽量短：先用一两句话复述你抓到的线索，再提出一个问题。
+`
+
+export function normalizeConversationMode(mode?: string | null): ConversationMode {
+  return mode === 'structured' ? 'structured' : 'explore'
+}
+
+export function withConversationPrompt(messages: ChatMessage[], mode?: string | null) {
+  const prompt = normalizeConversationMode(mode) === 'structured'
+    ? structuredSystemPrompt
+    : exploreSystemPrompt
+
+  return [{ role: 'system' as const, content: prompt.trim() }, ...messages]
+}
+
 export function withExplorePrompt(messages: ChatMessage[]) {
-  return [{ role: 'system' as const, content: exploreSystemPrompt.trim() }, ...messages]
+  return withConversationPrompt(messages, 'explore')
 }
 
 function compactErrorDetail(detail: string, fallback: string) {

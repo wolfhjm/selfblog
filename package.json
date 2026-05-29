@@ -28,13 +28,5 @@
     "typescript": "^5.8.3",
     "vue-tsc": "^2.2.10"
   },
-  "packageManager": "pnpm@10.29.2",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@parcel/watcher",
-      "better-sqlite3",
-      "esbuild",
-      "vue-demi"
-    ]
-  }
+  "packageManager": "pnpm@10.29.2"
 }

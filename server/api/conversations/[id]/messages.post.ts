@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
   const body = schema.parse(await readBody(event))
   const db = getDb()
-  const conversation = db.prepare('SELECT * FROM conversations WHERE id = ? AND user_id = ?').get(id, user.id)
+  const conversation = db.prepare('SELECT * FROM conversations WHERE id = ? AND user_id = ?').get(id, user.id) as { mode?: string } | undefined
   if (!conversation) {
     throw createError({ statusCode: 404, statusMessage: '没有找到这段对话' })
   }
@@ -33,7 +33,10 @@ export default defineEventHandler(async (event) => {
 
   const storedMessages = db.prepare('SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id ASC').all(id) as any[]
   try {
-    const reply = await callAi(withExplorePrompt(storedMessages.map((item) => ({ role: item.role, content: item.content }))))
+    const reply = await callAi(withConversationPrompt(
+      storedMessages.map((item) => ({ role: item.role, content: item.content })),
+      conversation.mode
+    ))
     db.prepare('INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)').run(id, 'assistant', reply)
     return { reply }
   } catch (error: any) {

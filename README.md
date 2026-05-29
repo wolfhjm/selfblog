@@ -17,6 +17,18 @@ pnpm dev
 
 上线前请修改 `ADMIN_EMAIL`、`ADMIN_PASSWORD` 和 `SESSION_SECRET`。
 
+## 日常开发
+
+```bash
+pnpm typecheck
+pnpm test:ai
+```
+
+- `main` 保持可运行，功能开发使用 `codex/<topic>` 分支。
+- 高增长列表接口使用统一分页返回结构。
+- 涉及页面交互的改动，提交前打开本地页面做一次冒烟。
+- 更完整的约定见 [开发规范](docs/DEVELOPMENT.md)。
+
 ## AI 配置
 
 默认兼容 GLM 官方接口，也支持 sub2 或其他 OpenAI-compatible 中转。

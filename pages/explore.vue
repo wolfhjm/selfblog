@@ -46,6 +46,24 @@
         生成日记小结
       </UButton>
 
+      <div class="mt-4 rounded-lg border border-slate-100 bg-white p-2">
+        <p class="px-1 text-xs font-medium text-slate-500">对话模式</p>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          <button
+            v-for="mode in conversationModes"
+            :key="mode.value"
+            class="rounded-lg border px-3 py-2 text-left text-sm transition"
+            :class="draftMode === mode.value ? 'border-teal-500 bg-teal-50 text-teal-900' : 'border-slate-200 text-slate-600 hover:border-teal-300'"
+            :disabled="Boolean(activeConversationId)"
+            @click="draftMode = mode.value"
+          >
+            <span class="block font-medium">{{ mode.label }}</span>
+            <span class="mt-1 block text-xs opacity-70">{{ mode.description }}</span>
+          </button>
+        </div>
+        <p v-if="activeConversationId" class="mt-2 px-1 text-xs text-slate-400">已有对话会沿用创建时的模式。</p>
+      </div>
+
       <div class="mt-5">
         <h2 class="mb-2 text-sm font-semibold text-slate-700">历史对话</h2>
         <div class="explore-history space-y-2">
@@ -85,7 +103,10 @@
           <h2 class="text-base font-semibold text-slate-950">对话现场</h2>
           <p class="text-xs text-slate-500">{{ activeConversationId ? '这段对话会被保存，方便后续提炼洞察。' : '先写下一个真实问题，系统会从这里开始记住你。' }}</p>
         </div>
-        <UBadge color="primary" variant="soft">{{ messages.length }} 条</UBadge>
+        <div class="flex items-center gap-2">
+          <UBadge color="neutral" variant="soft">{{ modeLabel(currentMode) }}</UBadge>
+          <UBadge color="primary" variant="soft">{{ messages.length }} 条</UBadge>
+        </div>
       </header>
 
       <div ref="messageList" class="explore-messages">
@@ -205,6 +226,8 @@ const conversations = computed(() => conversationData.value?.items || [])
 const draft = ref('')
 const messages = ref<any[]>([])
 const activeConversationId = ref<number | null>(null)
+const activeMode = ref<'explore' | 'structured'>('explore')
+const draftMode = ref<'explore' | 'structured'>('explore')
 const sending = ref(false)
 const extracting = ref(false)
 const extractingCandidates = ref(false)
@@ -224,6 +247,11 @@ const messageList = ref<HTMLElement | null>(null)
 const deleteOpen = ref(false)
 const deleting = ref(false)
 const deletingConversation = ref<any | null>(null)
+const conversationModes = [
+  { label: '自由探索', value: 'explore' as const, description: '更像自然聊天' },
+  { label: '结构追问', value: 'structured' as const, description: '拆事件和感受' }
+]
+const currentMode = computed(() => activeConversationId.value ? activeMode.value : draftMode.value)
 
 onMounted(async () => {
   const conversationId = Number(route.query.conversation)
@@ -240,6 +268,7 @@ function scrollToBottom() {
 
 function newConversation() {
   activeConversationId.value = null
+  activeMode.value = draftMode.value
   messages.value = []
   draft.value = ''
   error.value = ''
@@ -260,7 +289,7 @@ async function send() {
   scrollToBottom()
   try {
     if (!activeConversationId.value) {
-      const result = await $fetch<any>('/api/conversations', { method: 'POST', body: { message: text } })
+      const result = await $fetch<any>('/api/conversations', { method: 'POST', body: { message: text, mode: draftMode.value } })
       activeConversationId.value = result.conversationId
       if (result.error) {
         markLastLocalUserFailed(text)
@@ -306,7 +335,7 @@ async function retryMessage(message: any) {
   scrollToBottom()
   try {
     if (!activeConversationId.value) {
-      const result = await $fetch<any>('/api/conversations', { method: 'POST', body: { message: message.content } })
+      const result = await $fetch<any>('/api/conversations', { method: 'POST', body: { message: message.content, mode: draftMode.value } })
       activeConversationId.value = result.conversationId
       if (result.error) {
         message.failed = true
@@ -353,6 +382,8 @@ async function withdrawFailedMessage(message: any) {
 async function loadConversation(id: number) {
   const result = await $fetch<any>(`/api/conversations/${id}`)
   activeConversationId.value = id
+  activeMode.value = normalizeMode(result.conversation?.mode)
+  draftMode.value = activeMode.value
   messages.value = markRecoverableLastUserMessage(result.messages || [])
   scrollToBottom()
 }
@@ -436,6 +467,14 @@ async function extractCandidates() {
   } finally {
     extractingCandidates.value = false
   }
+}
+
+function normalizeMode(mode: unknown): 'explore' | 'structured' {
+  return mode === 'structured' ? 'structured' : 'explore'
+}
+
+function modeLabel(mode: string) {
+  return mode === 'structured' ? '结构追问' : '自由探索'
 }
 
 async function generateJournal() {
