@@ -22,49 +22,80 @@
       </div>
     </div>
 
-    <div v-if="candidates.length" class="grid gap-3 lg:grid-cols-2">
-      <SectionCard v-for="item in candidates" :key="item.id">
+    <div v-if="candidates.length" class="space-y-4">
+      <SectionCard v-for="chain in groupedChains" :key="chain.key">
         <template #title>
-          <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
-              <UBadge color="primary" variant="soft">{{ typeLabel(item.candidate_type) }}</UBadge>
-              <h2 class="mt-2 text-lg font-semibold text-slate-950">{{ item.title }}</h2>
+              <div class="flex flex-wrap items-center gap-2">
+                <UBadge color="primary" variant="soft">事件链</UBadge>
+                <UBadge color="neutral" variant="soft">{{ chain.items.length }} 条候选</UBadge>
+              </div>
+              <h2 class="mt-2 text-lg font-semibold text-slate-950">{{ chain.title }}</h2>
+              <p v-if="chain.summary" class="mt-1 text-sm leading-6 text-slate-500">{{ chain.summary }}</p>
             </div>
-            <UBadge color="neutral" variant="soft">{{ sourceLabel(item) }}</UBadge>
+            <UButton
+              v-if="chain.id"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-list-tree"
+              :loading="loadingChainId === chain.id"
+              @click="openChain(chain.id)"
+            >
+              查看事件
+            </UButton>
           </div>
         </template>
-        <p class="whitespace-pre-wrap text-sm leading-6 text-slate-600">{{ item.content || '没有补充内容。' }}</p>
-        <div v-if="eventContext(item).length" class="mt-3 rounded-lg border border-slate-100 bg-white p-3">
+
+        <div class="space-y-3">
           <div
-            v-for="detail in eventContext(item)"
-            :key="detail.label"
-            class="grid gap-1 text-sm md:grid-cols-[5.5rem_minmax(0,1fr)]"
+            v-for="eventGroup in chain.events"
+            :key="eventGroup.key"
+            class="rounded-lg border border-slate-100 bg-white p-3"
           >
-            <span class="font-medium text-slate-500">{{ detail.label }}</span>
-            <span class="leading-6 text-slate-700">{{ detail.value }}</span>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p class="text-sm font-semibold text-slate-950">{{ eventGroup.title }}</p>
+                <p v-if="eventGroup.order" class="mt-1 text-xs text-slate-400">事件 {{ eventGroup.order }}</p>
+              </div>
+              <UBadge color="neutral" variant="soft">{{ eventGroup.items.length }} 条</UBadge>
+            </div>
+            <div class="mt-3 grid gap-3 lg:grid-cols-2">
+              <div
+                v-for="item in eventGroup.items"
+                :key="item.id"
+                class="rounded-lg border border-slate-100 bg-slate-50 p-3"
+              >
+                <CandidateCard
+                  :item="item"
+                  :acting="actingId === item.id"
+                  @accept="acceptCandidate"
+                  @analyze="analyzeCandidate"
+                  @edit="openEdit"
+                  @dismiss="dismissCandidate"
+                />
+              </div>
+            </div>
           </div>
         </div>
-        <div v-if="payloadDetails(item).length" class="mt-4 space-y-2 rounded-lg bg-slate-50 p-3">
+      </SectionCard>
+
+      <SectionCard v-if="ungroupedCandidates.length" title="未分组候选">
+        <div class="grid gap-3 lg:grid-cols-2">
           <div
-            v-for="detail in payloadDetails(item)"
-            :key="detail.label"
-            class="grid gap-1 text-sm md:grid-cols-[5.5rem_minmax(0,1fr)]"
+            v-for="item in ungroupedCandidates"
+            :key="item.id"
+            class="rounded-lg border border-slate-100 bg-slate-50 p-3"
           >
-            <span class="font-medium text-slate-500">{{ detail.label }}</span>
-            <span class="whitespace-pre-wrap leading-6 text-slate-700">{{ detail.value }}</span>
+            <CandidateCard
+              :item="item"
+              :acting="actingId === item.id"
+              @accept="acceptCandidate"
+              @analyze="analyzeCandidate"
+              @edit="openEdit"
+              @dismiss="dismissCandidate"
+            />
           </div>
-        </div>
-        <div v-if="followUpQuestions(item).length" class="mt-3 rounded-lg border border-teal-100 bg-teal-50 p-3">
-          <p class="text-sm font-medium text-teal-900">可继续追问</p>
-          <ul class="mt-2 space-y-1 text-sm leading-6 text-teal-800">
-            <li v-for="question in followUpQuestions(item)" :key="question">- {{ question }}</li>
-          </ul>
-        </div>
-        <div class="mt-4 flex flex-wrap gap-2">
-          <UButton color="primary" variant="soft" icon="i-lucide-check" :loading="actingId === item.id" @click="acceptCandidate(item)">确认入库</UButton>
-          <UButton color="neutral" variant="soft" icon="i-lucide-message-circle" :loading="actingId === item.id" @click="analyzeCandidate(item)">继续分析</UButton>
-          <UButton color="neutral" variant="soft" icon="i-lucide-pencil" @click="openEdit(item)">编辑</UButton>
-          <UButton color="neutral" variant="ghost" icon="i-lucide-trash-2" :loading="actingId === item.id" @click="dismissCandidate(item)">丢弃</UButton>
         </div>
       </SectionCard>
     </div>
@@ -105,12 +136,47 @@
         </form>
       </template>
     </UModal>
+
+    <UModal v-model:open="chainOpen" title="事件链详情">
+      <template #body>
+        <div v-if="chainDetail" class="space-y-4">
+          <div>
+            <h2 class="text-base font-semibold text-slate-950">{{ chainDetail.chain.title }}</h2>
+            <p v-if="chainDetail.chain.summary" class="mt-1 text-sm leading-6 text-slate-500">{{ chainDetail.chain.summary }}</p>
+          </div>
+          <div class="space-y-3">
+            <div
+              v-for="event in chainDetail.events"
+              :key="event.id"
+              class="rounded-lg border border-slate-100 bg-white p-3"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="text-sm font-semibold text-slate-950">{{ event.sort_order }}. {{ event.title || event.activating_event || '未命名事件' }}</h3>
+                <UBadge color="neutral" variant="soft">{{ eventCandidateCount(event.id) }} 条候选</UBadge>
+              </div>
+              <div class="mt-3 space-y-2 text-sm">
+                <div
+                  v-for="detail in eventDetails(event)"
+                  :key="detail.label"
+                  class="grid gap-1 md:grid-cols-[5.5rem_minmax(0,1fr)]"
+                >
+                  <span class="font-medium text-slate-500">{{ detail.label }}</span>
+                  <span class="whitespace-pre-wrap leading-6 text-slate-700">{{ detail.value }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { Candidate, CandidateType } from '~/types/app'
+import type { Candidate, CandidateType, EventChain, ExtractedEvent } from '~/types/app'
 import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
+
+type EventChainDetail = { chain: EventChain, events: ExtractedEvent[], candidates: Candidate[] }
 
 type Draft = {
   candidate_type: CandidateType
@@ -140,6 +206,9 @@ const candidates = computed(() => candidateData.value?.items || [])
 const modalOpen = ref(false)
 const editing = ref<Candidate | null>(null)
 const actingId = ref<number | null>(null)
+const chainOpen = ref(false)
+const loadingChainId = ref<number | null>(null)
+const chainDetail = ref<EventChainDetail | null>(null)
 const draft = reactive<Draft>({
   candidate_type: 'insight',
   title: '',
@@ -160,6 +229,51 @@ const typeItems: Array<{ label: string, value: CandidateType }> = [
   { label: '实验建议', value: 'experiment' }
 ]
 const typeFilters: Array<{ label: string, value: CandidateType | 'all' }> = [{ label: '全部', value: 'all' }, ...typeItems]
+const groupedChains = computed(() => {
+  const chains = new Map<string, {
+    key: string
+    id: number | null
+    title: string
+    summary: string
+    items: Candidate[]
+    events: Array<{ key: string, id: number | null, order: number | null, title: string, items: Candidate[] }>
+  }>()
+
+  for (const item of candidates.value.filter((candidate) => candidate.event_chain_id)) {
+    const key = String(item.event_chain_id)
+    if (!chains.has(key)) {
+      chains.set(key, {
+        key,
+        id: item.event_chain_id,
+        title: item.event_chain_title || `事件链 #${item.event_chain_id}`,
+        summary: item.event_chain_summary || '',
+        items: [],
+        events: []
+      })
+    }
+    const chain = chains.get(key)!
+    chain.items.push(item)
+    const eventKey = String(item.extracted_event_id || `unassigned-${key}`)
+    let eventGroup = chain.events.find((event) => event.key === eventKey)
+    if (!eventGroup) {
+      eventGroup = {
+        key: eventKey,
+        id: item.extracted_event_id,
+        order: item.event_sort_order || null,
+        title: item.event_title || '未归属事件',
+        items: []
+      }
+      chain.events.push(eventGroup)
+    }
+    eventGroup.items.push(item)
+  }
+
+  return Array.from(chains.values()).map((chain) => ({
+    ...chain,
+    events: chain.events.sort((left, right) => (left.order || 999) - (right.order || 999))
+  }))
+})
+const ungroupedCandidates = computed(() => candidates.value.filter((candidate) => !candidate.event_chain_id))
 
 watch(activeType, () => {
   page.value = 1
@@ -238,6 +352,18 @@ async function dismissCandidate(item: Candidate) {
   }
 }
 
+async function openChain(id: number) {
+  loadingChainId.value = id
+  try {
+    chainDetail.value = await $fetch<EventChainDetail>(`/api/event-chains/${id}` as '/api/event-chains/[id]')
+    chainOpen.value = true
+  } catch (err: any) {
+    toast.add({ title: '事件链读取失败', description: err?.statusMessage || err?.message || '请稍后再试', color: 'error' })
+  } finally {
+    loadingChainId.value = null
+  }
+}
+
 async function analyzeCandidate(item: Candidate) {
   actingId.value = item.id
   try {
@@ -295,16 +421,23 @@ function typeLabel(type: string) {
   return ({ pattern: '规律', case: '小事件', reaction: '感受/反应', lesson: '经验教训', insight: '洞察', experiment: '实验建议' } as Record<string, string>)[type] || type
 }
 
-function sourceLabel(item: Candidate) {
-  return item.source_type ? `${item.source_type} #${item.source_id || '-'}` : '手动'
+function eventDetails(event: ExtractedEvent) {
+  return [
+    { label: '客观环境', value: event.objective_context },
+    { label: '触发事件', value: event.activating_event || event.event_detail },
+    { label: '事件细节', value: event.event_detail },
+    { label: '解释/信念', value: event.belief_or_interpretation },
+    { label: '后果', value: event.consequence },
+    { label: '身体信号', value: event.body_signal },
+    { label: '情绪', value: event.emotion },
+    { label: '隐藏需求', value: event.hidden_need },
+    { label: '隐藏恐惧', value: event.hidden_fear },
+    { label: '原文证据', value: event.raw_evidence }
+  ].filter((detail) => String(detail.value || '').trim())
 }
 
-function eventContext(item: Candidate) {
-  return [
-    { label: '事件链', value: item.event_chain_title },
-    { label: '链摘要', value: item.event_chain_summary },
-    { label: '所属事件', value: item.event_title ? `${item.event_sort_order || '-'} / ${item.event_title}` : '' }
-  ].filter((detail) => String(detail.value || '').trim())
+function eventCandidateCount(eventId: number) {
+  return chainDetail.value?.candidates.filter((candidate) => candidate.extracted_event_id === eventId).length || 0
 }
 
 function parsePayload(payload: string) {
@@ -313,34 +446,6 @@ function parsePayload(payload: string) {
   } catch {
     return {}
   }
-}
-
-function payloadDetails(item: Candidate) {
-  const payload = parsePayload(item.payload)
-  return [
-    { label: '客观环境', value: payload.objective_context },
-    { label: 'ABC 事件', value: payload.activating_event || payload.event_detail },
-    { label: '事件细节', value: payload.event_detail },
-    { label: '身体信号', value: payload.body_signal },
-    { label: '感受', value: payload.emotion },
-    { label: 'ABC 信念', value: payload.belief_or_interpretation || payload.interpretation },
-    { label: '解释', value: payload.interpretation },
-    { label: 'ABC 后果', value: payload.consequence },
-    { label: '支持证据', value: payload.evidence_for },
-    { label: '反例', value: payload.evidence_against },
-    { label: '新解释', value: payload.reframe },
-    { label: '隐藏需求', value: payload.hidden_need },
-    { label: '隐藏恐惧', value: payload.hidden_fear },
-    { label: '目标行为', value: payload.target_behavior },
-    { label: '动机', value: payload.motivation },
-    { label: '能力', value: payload.ability },
-    { label: '提示', value: payload.prompt },
-    { label: '更小版本', value: payload.tiny_version },
-    { label: '完成标准', value: payload.success_criterion },
-    { label: '机会', value: payload.opportunity },
-    { label: '健康背景', value: payload.health_context },
-    { label: '原文证据', value: payload.raw_evidence }
-  ].filter((detail) => String(detail.value || '').trim())
 }
 
 function followUpQuestions(item: Candidate) {
