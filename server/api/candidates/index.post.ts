@@ -6,6 +6,8 @@ const schema = z.object({
   content: z.string().default(''),
   source_type: z.string().nullable().optional(),
   source_id: z.number().int().positive().nullable().optional(),
+  event_chain_id: z.number().int().positive().nullable().optional(),
+  extracted_event_id: z.number().int().positive().nullable().optional(),
   payload: z.record(z.unknown()).default({})
 })
 
@@ -20,6 +22,8 @@ export default defineEventHandler(async (event) => {
       content,
       source_type,
       source_id,
+      event_chain_id,
+      extracted_event_id,
       payload
     )
     VALUES (
@@ -29,6 +33,8 @@ export default defineEventHandler(async (event) => {
       @content,
       @source_type,
       @source_id,
+      @event_chain_id,
+      @extracted_event_id,
       @payload
     )
   `).run({
@@ -36,6 +42,8 @@ export default defineEventHandler(async (event) => {
     ...body,
     source_type: body.source_type || null,
     source_id: body.source_id || null,
+    event_chain_id: body.event_chain_id || null,
+    extracted_event_id: body.extracted_event_id || null,
     payload: JSON.stringify(body.payload)
   })
 

@@ -34,6 +34,16 @@
           </div>
         </template>
         <p class="whitespace-pre-wrap text-sm leading-6 text-slate-600">{{ item.content || '没有补充内容。' }}</p>
+        <div v-if="eventContext(item).length" class="mt-3 rounded-lg border border-slate-100 bg-white p-3">
+          <div
+            v-for="detail in eventContext(item)"
+            :key="detail.label"
+            class="grid gap-1 text-sm md:grid-cols-[5.5rem_minmax(0,1fr)]"
+          >
+            <span class="font-medium text-slate-500">{{ detail.label }}</span>
+            <span class="leading-6 text-slate-700">{{ detail.value }}</span>
+          </div>
+        </div>
         <div v-if="payloadDetails(item).length" class="mt-4 space-y-2 rounded-lg bg-slate-50 p-3">
           <div
             v-for="detail in payloadDetails(item)"
@@ -108,6 +118,8 @@ type Draft = {
   content: string
   source_type: string
   source_id: number | null
+  event_chain_id: number | null
+  extracted_event_id: number | null
   payload: Record<string, unknown>
 }
 
@@ -134,6 +146,8 @@ const draft = reactive<Draft>({
   content: '',
   source_type: '',
   source_id: null,
+  event_chain_id: null,
+  extracted_event_id: null,
   payload: {}
 })
 
@@ -159,6 +173,8 @@ function openCreate() {
     content: '',
     source_type: '',
     source_id: null,
+    event_chain_id: null,
+    extracted_event_id: null,
     payload: {}
   })
   modalOpen.value = true
@@ -172,6 +188,8 @@ function openEdit(item: Candidate) {
     content: item.content,
     source_type: item.source_type || '',
     source_id: item.source_id,
+    event_chain_id: item.event_chain_id,
+    extracted_event_id: item.extracted_event_id,
     payload: parsePayload(item.payload)
   })
   modalOpen.value = true
@@ -230,6 +248,9 @@ async function analyzeCandidate(item: Candidate) {
       `候选类型：${typeLabel(item.candidate_type)}`,
       `标题：${item.title}`,
       `内容：${item.content || '无'}`,
+      item.event_chain_title ? `事件链：${item.event_chain_title}` : '',
+      item.event_chain_summary ? `事件链摘要：${item.event_chain_summary}` : '',
+      item.event_title ? `所属事件：${item.event_title}` : '',
       payload.objective_context ? `客观环境：${payload.objective_context}` : '',
       payload.event_detail || payload.activating_event ? `事件：${payload.event_detail || payload.activating_event}` : '',
       payload.emotion ? `感受：${payload.emotion}` : '',
@@ -276,6 +297,14 @@ function typeLabel(type: string) {
 
 function sourceLabel(item: Candidate) {
   return item.source_type ? `${item.source_type} #${item.source_id || '-'}` : '手动'
+}
+
+function eventContext(item: Candidate) {
+  return [
+    { label: '事件链', value: item.event_chain_title },
+    { label: '链摘要', value: item.event_chain_summary },
+    { label: '所属事件', value: item.event_title ? `${item.event_sort_order || '-'} / ${item.event_title}` : '' }
+  ].filter((detail) => String(detail.value || '').trim())
 }
 
 function parsePayload(payload: string) {

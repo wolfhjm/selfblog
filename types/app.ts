@@ -137,6 +137,44 @@ export interface Candidate {
   created_by: string
   accepted_object_type: string | null
   accepted_object_id: number | null
+  event_chain_id: number | null
+  extracted_event_id: number | null
+  event_chain_title?: string | null
+  event_chain_summary?: string | null
+  event_title?: string | null
+  event_sort_order?: number | null
   created_at: string
   updated_at: string
+}
+
+export interface EventChain {
+  id: number
+  user_id: number
+  source_type: string
+  source_id: number | null
+  title: string
+  summary: string
+  status: string
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ExtractedEvent {
+  id: number
+  user_id: number
+  event_chain_id: number
+  title: string
+  objective_context: string
+  event_detail: string
+  activating_event: string
+  belief_or_interpretation: string
+  consequence: string
+  body_signal: string
+  emotion: string
+  hidden_need: string
+  hidden_fear: string
+  raw_evidence: string
+  sort_order: number
+  created_at: string
 }

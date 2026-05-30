@@ -181,6 +181,38 @@ function migrate(database: Database.Database) {
       UNIQUE(user_id, source_type, source_id, target_type, target_id, relation_type)
     );
 
+    CREATE TABLE IF NOT EXISTS event_chains (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source_type TEXT NOT NULL,
+      source_id INTEGER,
+      title TEXT NOT NULL DEFAULT '',
+      summary TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_by TEXT NOT NULL DEFAULT 'ai',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS extracted_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      event_chain_id INTEGER NOT NULL REFERENCES event_chains(id) ON DELETE CASCADE,
+      title TEXT NOT NULL DEFAULT '',
+      objective_context TEXT NOT NULL DEFAULT '',
+      event_detail TEXT NOT NULL DEFAULT '',
+      activating_event TEXT NOT NULL DEFAULT '',
+      belief_or_interpretation TEXT NOT NULL DEFAULT '',
+      consequence TEXT NOT NULL DEFAULT '',
+      body_signal TEXT NOT NULL DEFAULT '',
+      emotion TEXT NOT NULL DEFAULT '',
+      hidden_need TEXT NOT NULL DEFAULT '',
+      hidden_fear TEXT NOT NULL DEFAULT '',
+      raw_evidence TEXT NOT NULL DEFAULT '',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS candidates (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -194,6 +226,8 @@ function migrate(database: Database.Database) {
       created_by TEXT NOT NULL DEFAULT 'ai',
       accepted_object_type TEXT,
       accepted_object_id INTEGER,
+      event_chain_id INTEGER REFERENCES event_chains(id) ON DELETE SET NULL,
+      extracted_event_id INTEGER REFERENCES extracted_events(id) ON DELETE SET NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -202,6 +236,8 @@ function migrate(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_object_links_source ON object_links(user_id, source_type, source_id);
     CREATE INDEX IF NOT EXISTS idx_object_links_target ON object_links(user_id, target_type, target_id);
     CREATE INDEX IF NOT EXISTS idx_candidates_user_status ON candidates(user_id, status, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_event_chains_source ON event_chains(user_id, source_type, source_id);
+    CREATE INDEX IF NOT EXISTS idx_extracted_events_chain ON extracted_events(user_id, event_chain_id, sort_order);
   `)
 
   ensureColumn(database, 'principles', 'verification_status', "TEXT NOT NULL DEFAULT 'unverified'")
@@ -220,6 +256,8 @@ function migrate(database: Database.Database) {
   ensureColumn(database, 'experiments', 'failure_reason', "TEXT NOT NULL DEFAULT ''")
   ensureColumn(database, 'experiments', 'opportunity', "TEXT NOT NULL DEFAULT ''")
   ensureColumn(database, 'experiments', 'health_context', "TEXT NOT NULL DEFAULT ''")
+  ensureColumn(database, 'candidates', 'event_chain_id', 'INTEGER')
+  ensureColumn(database, 'candidates', 'extracted_event_id', 'INTEGER')
 }
 
 function ensureColumn(database: Database.Database, table: string, column: string, definition: string) {
