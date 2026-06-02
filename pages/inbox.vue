@@ -58,7 +58,42 @@
                 <p class="text-sm font-semibold text-slate-950">{{ eventGroup.title }}</p>
                 <p v-if="eventGroup.order" class="mt-1 text-xs text-slate-400">事件 {{ eventGroup.order }}</p>
               </div>
-              <UBadge color="neutral" variant="soft">{{ eventGroup.items.length }} 条</UBadge>
+              <div class="flex flex-wrap items-center gap-2">
+                <UBadge color="neutral" variant="soft">{{ eventGroup.items.length }} 条</UBadge>
+                <UButton
+                  v-if="eventGroup.id"
+                  color="neutral"
+                  variant="soft"
+                  size="xs"
+                  icon="i-lucide-message-circle"
+                  :loading="actingEventId === eventGroup.id"
+                  @click="analyzeEvent(eventGroup)"
+                >
+                  追问事件
+                </UButton>
+                <UButton
+                  v-if="eventGroup.id"
+                  color="neutral"
+                  variant="soft"
+                  size="xs"
+                  icon="i-lucide-map-pin-plus"
+                  :loading="actingEventId === eventGroup.id"
+                  @click="promoteEvent(eventGroup)"
+                >
+                  事件入库
+                </UButton>
+                <UButton
+                  v-if="eventGroup.id"
+                  color="primary"
+                  variant="soft"
+                  size="xs"
+                  icon="i-lucide-check-check"
+                  :loading="actingEventId === eventGroup.id"
+                  @click="askAcceptEventCandidates(eventGroup)"
+                >
+                  确认本事件
+                </UButton>
+              </div>
             </div>
             <div class="mt-3 grid gap-3 lg:grid-cols-2">
               <div
@@ -169,6 +204,20 @@
         </div>
       </template>
     </UModal>
+
+    <UModal v-model:open="bulkOpen" title="确认本事件下的候选？">
+      <template #body>
+        <div class="space-y-4">
+          <p class="text-sm leading-6 text-slate-600">
+            将确认「{{ bulkEvent?.title }}」下的 {{ bulkEvent?.items.length || 0 }} 条候选，并分别写入认知地图或实验库。
+          </p>
+          <div class="flex justify-end gap-2">
+            <UButton color="neutral" variant="ghost" @click="bulkOpen = false">取消</UButton>
+            <UButton color="primary" icon="i-lucide-check-check" :loading="bulkAccepting" @click="acceptEventCandidates">确认入库</UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -177,6 +226,7 @@ import type { Candidate, CandidateType, EventChain, ExtractedEvent } from '~/typ
 import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
 
 type EventChainDetail = { chain: EventChain, events: ExtractedEvent[], candidates: Candidate[] }
+type EventGroup = { key: string, id: number | null, order: number | null, title: string, items: Candidate[] }
 
 type Draft = {
   candidate_type: CandidateType
@@ -206,9 +256,13 @@ const candidates = computed(() => candidateData.value?.items || [])
 const modalOpen = ref(false)
 const editing = ref<Candidate | null>(null)
 const actingId = ref<number | null>(null)
+const actingEventId = ref<number | null>(null)
 const chainOpen = ref(false)
 const loadingChainId = ref<number | null>(null)
 const chainDetail = ref<EventChainDetail | null>(null)
+const bulkOpen = ref(false)
+const bulkAccepting = ref(false)
+const bulkEvent = ref<EventGroup | null>(null)
 const draft = reactive<Draft>({
   candidate_type: 'insight',
   title: '',
@@ -236,7 +290,7 @@ const groupedChains = computed(() => {
     title: string
     summary: string
     items: Candidate[]
-    events: Array<{ key: string, id: number | null, order: number | null, title: string, items: Candidate[] }>
+    events: EventGroup[]
   }>()
 
   for (const item of candidates.value.filter((candidate) => candidate.event_chain_id)) {
@@ -361,6 +415,79 @@ async function openChain(id: number) {
     toast.add({ title: '事件链读取失败', description: err?.statusMessage || err?.message || '请稍后再试', color: 'error' })
   } finally {
     loadingChainId.value = null
+  }
+}
+
+async function analyzeEvent(eventGroup: EventGroup) {
+  if (!eventGroup.id) return
+  actingEventId.value = eventGroup.id
+  try {
+    const first = eventGroup.items[0]
+    const payload = first ? parsePayload(first.payload) : {}
+    const message = [
+      '我想围绕这个具体事件继续分析，请你用 ABC / CBT 帮我拆清楚，不急着总结。',
+      first?.event_chain_title ? `事件链：${first.event_chain_title}` : '',
+      first?.event_chain_summary ? `事件链摘要：${first.event_chain_summary}` : '',
+      `事件：${eventGroup.title}`,
+      payload.objective_context ? `客观环境：${payload.objective_context}` : '',
+      payload.event_detail || payload.activating_event ? `事件细节：${payload.event_detail || payload.activating_event}` : '',
+      payload.belief_or_interpretation || payload.interpretation ? `当时解释：${payload.belief_or_interpretation || payload.interpretation}` : '',
+      payload.consequence ? `后果：${payload.consequence}` : '',
+      payload.emotion ? `情绪：${payload.emotion}` : '',
+      payload.body_signal ? `身体信号：${payload.body_signal}` : '',
+      payload.hidden_need ? `可能需求：${payload.hidden_need}` : '',
+      payload.hidden_fear ? `可能恐惧：${payload.hidden_fear}` : '',
+      '',
+      '请先指出这个事件里 A、B、C 分别是什么，然后只问我一个最值得补充的问题。'
+    ].filter(Boolean).join('\n')
+
+    const result = await $fetch<any>('/api/conversations', {
+      method: 'POST',
+      body: {
+        title: `事件追问：${eventGroup.title}`.slice(0, 32),
+        message,
+        mode: 'structured'
+      }
+    })
+    await navigateTo(`/explore?conversation=${result.conversationId}`)
+  } catch (err: any) {
+    toast.add({ title: '事件追问创建失败', description: err?.statusMessage || err?.message || '请稍后再试', color: 'error' })
+  } finally {
+    actingEventId.value = null
+  }
+}
+
+async function promoteEvent(eventGroup: EventGroup) {
+  if (!eventGroup.id) return
+  actingEventId.value = eventGroup.id
+  try {
+    await $fetch(`/api/extracted-events/${eventGroup.id}/promote`, { method: 'POST' })
+    toast.add({ title: '事件已进入认知地图', color: 'success' })
+  } catch (err: any) {
+    toast.add({ title: '事件入库失败', description: err?.statusMessage || err?.message || '请稍后再试', color: 'error' })
+  } finally {
+    actingEventId.value = null
+  }
+}
+
+function askAcceptEventCandidates(eventGroup: EventGroup) {
+  bulkEvent.value = eventGroup
+  bulkOpen.value = true
+}
+
+async function acceptEventCandidates() {
+  if (!bulkEvent.value?.id) return
+  bulkAccepting.value = true
+  try {
+    const result = await $fetch<{ count: number }>(`/api/extracted-events/${bulkEvent.value.id}/accept-candidates`, { method: 'POST' })
+    await refresh()
+    bulkOpen.value = false
+    bulkEvent.value = null
+    toast.add({ title: `已确认 ${result.count} 条候选`, color: 'success' })
+  } catch (err: any) {
+    toast.add({ title: '批量确认失败', description: err?.statusMessage || err?.message || '请稍后再试', color: 'error' })
+  } finally {
+    bulkAccepting.value = false
   }
 }
 
