@@ -1,11 +1,16 @@
 <template>
   <div class="workspace-page space-y-4">
-    <div class="flex items-center justify-between gap-3">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
         <h1 class="text-2xl font-semibold text-slate-950">行动实验</h1>
         <p class="mt-1 text-sm text-slate-500">只做一次、30 分钟内完成，用体验替代空想。</p>
       </div>
-      <UButton icon="i-lucide-sparkles" :loading="suggesting" @click="suggest">AI 推荐</UButton>
+      <div class="flex flex-wrap gap-2">
+        <UButton icon="i-lucide-dices" color="neutral" variant="soft" :loading="adventuring" @click="adventure">
+          随机大冒险
+        </UButton>
+        <UButton icon="i-lucide-sparkles" :loading="suggesting" @click="suggest">AI 推荐</UButton>
+      </div>
     </div>
 
     <UAlert
@@ -61,6 +66,14 @@
     <UModal v-model:open="draftOpen" title="确认实验">
       <template #body>
         <form class="space-y-4" @submit.prevent="saveDraft">
+          <UAlert
+            v-if="draftKind === 'adventure'"
+            color="primary"
+            variant="soft"
+            icon="i-lucide-dices"
+            title="随机大冒险实验"
+            description="这是一个尝试新事物的低成本实验。可以先改小一点，再保存。"
+          />
           <UFormField label="标题" required>
             <UInput v-model="draft.title" class="w-full" />
           </UFormField>
@@ -147,8 +160,10 @@ const { data: experimentData, refresh } = await useFetch<PaginatedResponse<any>>
 })
 const experiments = computed(() => experimentData.value?.items || [])
 const suggesting = ref(false)
+const adventuring = ref(false)
 const error = ref('')
 const editing = ref<any | null>(null)
+const draftKind = ref<'normal' | 'adventure'>('normal')
 const review = ref<any | null>(null)
 const draft = reactive({
   title: '',
@@ -244,6 +259,7 @@ function verificationResultLabel(value: string) {
 async function suggest() {
   suggesting.value = true
   error.value = ''
+  draftKind.value = 'normal'
   try {
     const result = await $fetch<any>('/api/ai/experiment', { method: 'POST' })
     editing.value = { ...result, status: 'active', visibility: 'private', suggested_by_ai: 1 }
@@ -251,6 +267,26 @@ async function suggest() {
     error.value = err?.statusMessage || 'AI 推荐失败，请检查配置'
   } finally {
     suggesting.value = false
+  }
+}
+
+async function adventure() {
+  adventuring.value = true
+  error.value = ''
+  draftKind.value = 'adventure'
+  try {
+    const result = await $fetch<any>('/api/ai/adventure-experiment', { method: 'POST' })
+    editing.value = {
+      ...result,
+      status: 'draft',
+      visibility: 'private',
+      suggested_by_ai: 1,
+      week_number: appDateString()
+    }
+  } catch (err: any) {
+    error.value = err?.statusMessage || err?.message || '随机大冒险生成失败，请稍后再试'
+  } finally {
+    adventuring.value = false
   }
 }
 

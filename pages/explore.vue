@@ -47,7 +47,10 @@
       </UButton>
 
       <div class="mt-4 rounded-lg border border-slate-100 bg-white p-2">
-        <p class="px-1 text-xs font-medium text-slate-500">对话模式</p>
+        <div class="flex items-center justify-between gap-2 px-1">
+          <p class="text-xs font-medium text-slate-500">对话模式</p>
+          <UBadge v-if="loadingConversation" color="neutral" variant="soft">切换中</UBadge>
+        </div>
         <div class="mt-2 grid grid-cols-2 gap-2">
           <button
             v-for="mode in conversationModes"
@@ -61,7 +64,10 @@
             <span class="mt-1 block text-xs opacity-70">{{ mode.description }}</span>
           </button>
         </div>
-        <p v-if="activeConversationId" class="mt-2 px-1 text-xs text-slate-400">已有对话会沿用创建时的模式。</p>
+        <div class="mt-2 space-y-1 px-1 text-xs leading-5 text-slate-400">
+          <p v-if="activeConversationId">已有对话会沿用创建时的模式。要使用结构追问，请点右上角新对话后先选择“结构追问”。</p>
+          <p v-else>结构追问适合把一件事拆成：客观环境、具体事件、身体信号、情绪、解释、隐藏需求和可验证洞察。</p>
+        </div>
       </div>
 
       <div class="mt-5">
@@ -74,7 +80,7 @@
             class="flex items-start gap-2 rounded-lg border bg-white p-2 text-sm transition hover:border-teal-300"
             :class="activeConversationId === item.id ? 'border-teal-500 text-teal-900' : 'border-slate-200 text-slate-700'"
           >
-            <button class="min-w-0 flex-1 p-1 text-left" @click="loadConversation(item.id)">
+            <button class="min-w-0 flex-1 p-1 text-left" :disabled="loadingConversation" @click="selectConversation(item.id)">
               <span class="line-clamp-2">{{ item.title }}</span>
             </button>
             <UButton
@@ -110,7 +116,15 @@
       </header>
 
       <div ref="messageList" class="explore-messages">
-        <div v-if="!messages.length" class="mx-auto flex h-full max-w-md flex-col items-center justify-center px-6 text-center">
+        <div v-if="loadingConversation" class="mx-auto flex h-full max-w-md flex-col items-center justify-center px-6 text-center">
+          <div class="mb-4 flex size-12 items-center justify-center rounded-full bg-teal-50 text-teal-800">
+            <UIcon name="i-lucide-loader-circle" class="size-6 animate-spin" />
+          </div>
+          <h3 class="text-base font-semibold text-slate-950">正在切换对话</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-500">稍等一下，我把这段历史拉回来。</p>
+        </div>
+
+        <div v-else-if="!messages.length" class="mx-auto flex h-full max-w-md flex-col items-center justify-center px-6 text-center">
           <div class="mb-4 flex size-12 items-center justify-center rounded-full bg-teal-50 text-teal-800">
             <UIcon name="i-lucide-message-circle" class="size-6" />
           </div>
@@ -229,6 +243,7 @@ const activeConversationId = ref<number | null>(null)
 const activeMode = ref<'explore' | 'structured'>('explore')
 const draftMode = ref<'explore' | 'structured'>('explore')
 const sending = ref(false)
+const loadingConversation = ref(false)
 const extracting = ref(false)
 const extractingCandidates = ref(false)
 const summarizing = ref(false)
@@ -272,6 +287,7 @@ function newConversation() {
   messages.value = []
   draft.value = ''
   error.value = ''
+  navigateTo('/explore', { replace: true })
   scrollToBottom()
 }
 
@@ -380,12 +396,26 @@ async function withdrawFailedMessage(message: any) {
 }
 
 async function loadConversation(id: number) {
-  const result = await $fetch<any>(`/api/conversations/${id}`)
-  activeConversationId.value = id
-  activeMode.value = normalizeMode(result.conversation?.mode)
-  draftMode.value = activeMode.value
-  messages.value = markRecoverableLastUserMessage(result.messages || [])
-  scrollToBottom()
+  loadingConversation.value = true
+  error.value = ''
+  draft.value = ''
+  try {
+    const result = await $fetch<any>(`/api/conversations/${id}`)
+    activeConversationId.value = id
+    activeMode.value = normalizeMode(result.conversation?.mode)
+    draftMode.value = activeMode.value
+    messages.value = markRecoverableLastUserMessage(result.messages || [])
+    scrollToBottom()
+  } catch (err: any) {
+    error.value = readableError(err, '历史对话加载失败，请稍后再试')
+  } finally {
+    loadingConversation.value = false
+  }
+}
+
+async function selectConversation(id: number) {
+  await navigateTo({ path: '/explore', query: { conversation: String(id) } }, { replace: true })
+  await loadConversation(id)
 }
 
 function askDeleteConversation(item: any) {
