@@ -33,7 +33,7 @@ export function collectPeriodReviewSources(db: Db, userId: number, input: Period
   `).all(userId, input.startDate, input.endDate)
 
   const experiments = db.prepare(`
-    SELECT id, title, description, status, reflection, barrier, target_behavior, failure_reason, done_at, created_at
+    SELECT id, title, description, status, reflection, barrier, target_behavior, failure_reason, completion_score, actual_behavior, learning, done_at, created_at
     FROM experiments
     WHERE user_id = ?
       AND (
@@ -84,7 +84,7 @@ export function fallbackPeriodReviewDraft(input: PeriodReviewInput, sources: Ret
     .join('\n') || '- 暂无日记小结'
   const topExperiments = sources.experiments
     .slice(0, 5)
-    .map((item: any) => `- ${item.title}：${item.status}${item.reflection ? `；复盘：${item.reflection}` : ''}`)
+    .map((item: any) => `- ${item.title}：${item.status}${item.completion_score ? `；完成度 ${item.completion_score}%` : ''}${item.learning ? `；学到：${item.learning}` : item.reflection ? `；复盘：${item.reflection}` : ''}`)
     .join('\n') || '- 暂无实验记录'
   const acceptedCandidates = sources.candidates.filter((item: any) => item.status === 'accepted').length
 

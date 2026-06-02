@@ -161,6 +161,9 @@ function migrate(database: Database.Database) {
       failure_reason TEXT NOT NULL DEFAULT '',
       opportunity TEXT NOT NULL DEFAULT '',
       health_context TEXT NOT NULL DEFAULT '',
+      completion_score INTEGER NOT NULL DEFAULT 0,
+      actual_behavior TEXT NOT NULL DEFAULT '',
+      learning TEXT NOT NULL DEFAULT '',
       done_at TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -283,6 +286,9 @@ function migrate(database: Database.Database) {
   ensureColumn(database, 'experiments', 'failure_reason', "TEXT NOT NULL DEFAULT ''")
   ensureColumn(database, 'experiments', 'opportunity', "TEXT NOT NULL DEFAULT ''")
   ensureColumn(database, 'experiments', 'health_context', "TEXT NOT NULL DEFAULT ''")
+  ensureColumn(database, 'experiments', 'completion_score', "INTEGER NOT NULL DEFAULT 0")
+  ensureColumn(database, 'experiments', 'actual_behavior', "TEXT NOT NULL DEFAULT ''")
+  ensureColumn(database, 'experiments', 'learning', "TEXT NOT NULL DEFAULT ''")
   ensureColumn(database, 'candidates', 'event_chain_id', 'INTEGER')
   ensureColumn(database, 'candidates', 'extracted_event_id', 'INTEGER')
 }

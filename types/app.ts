@@ -1,5 +1,5 @@
 export type Visibility = 'private' | 'public'
-export type ExperimentStatus = 'active' | 'done' | 'skipped' | 'draft'
+export type ExperimentStatus = 'active' | 'done' | 'partial' | 'skipped' | 'draft'
 export type MessageRole = 'system' | 'user' | 'assistant'
 export type CognitiveItemType = 'pattern' | 'case' | 'reaction' | 'lesson' | 'insight'
 export type VerificationStatus = 'unverified' | 'has_example' | 'testing' | 'partial' | 'strong' | 'needs_revision' | 'discarded'
@@ -100,6 +100,9 @@ export interface Experiment {
   failure_reason: string
   opportunity: string
   health_context: string
+  completion_score: number
+  actual_behavior: string
+  learning: string
   experiment_type?: string
   verification_result?: string
   linked_object_type?: string | null

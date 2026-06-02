@@ -49,15 +49,17 @@
             <span class="leading-6 text-slate-700">{{ detail.value }}</span>
           </div>
         </div>
-        <div v-if="item.reflection || item.barrier" class="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+        <div v-if="item.reflection || item.barrier || item.actual_behavior || item.learning || item.completion_score" class="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+          <p v-if="item.completion_score">完成度：{{ item.completion_score }}%</p>
+          <p v-if="item.actual_behavior">实际行动：{{ item.actual_behavior }}</p>
           <p v-if="item.reflection">复盘：{{ item.reflection }}</p>
+          <p v-if="item.learning">学到：{{ item.learning }}</p>
           <p v-if="item.barrier">阻碍：{{ item.barrier }}</p>
           <p v-if="item.failure_reason">缺口：{{ failureReasonLabel(item.failure_reason) }}</p>
           <p v-if="item.verification_result">验证：{{ verificationResultLabel(item.verification_result) }}</p>
         </div>
         <div class="mt-4 flex flex-wrap gap-2">
-          <UButton color="primary" variant="soft" icon="i-lucide-check" @click="openReview(item, 'done')">完成</UButton>
-          <UButton color="neutral" variant="soft" icon="i-lucide-circle-help" @click="openReview(item, 'skipped')">没做</UButton>
+          <UButton color="primary" variant="soft" icon="i-lucide-clipboard-check" @click="openReview(item)">记录情况</UButton>
           <UButton color="neutral" variant="ghost" icon="i-lucide-pencil" @click="editing = { ...item }">编辑</UButton>
         </div>
       </SectionCard>
@@ -149,6 +151,14 @@
 
     <UModal v-model:open="manageCategoryOpen" title="管理随机类别">
       <template #body>
+        <div class="mb-3 flex flex-wrap gap-2">
+          <UButton icon="i-lucide-sparkles" color="neutral" variant="soft" :loading="suggestingCategory" @click="suggestCategory">
+            AI 推荐新类别
+          </UButton>
+          <UButton icon="i-lucide-wand-sparkles" color="neutral" variant="soft" :loading="writingPrompt" :disabled="!categoryDraft.title.trim()" @click="writeCategoryPrompt">
+            根据类别写提示词
+          </UButton>
+        </div>
         <form class="space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-3" @submit.prevent="saveCategory">
           <UFormField label="类别名" required>
             <UInput v-model="categoryDraft.title" class="w-full" />
@@ -191,10 +201,19 @@
     <UModal v-model:open="reviewOpen" title="记录实验结果">
       <template #body>
         <form class="space-y-4" @submit.prevent="saveReview">
-          <UFormField v-if="review.status === 'done'" label="做完后的复盘">
-            <UTextarea v-model="review.reflection" autoresize placeholder="这次体验让我学到了什么？" class="w-full" />
+          <UFormField label="完成度">
+            <USelect v-model="review.completion_score" :items="completionItems" class="w-full" @update:model-value="syncReviewStatus" />
           </UFormField>
-          <UFormField v-else label="是什么挡住了你">
+          <UFormField label="实际做了什么">
+            <UTextarea v-model="review.actual_behavior" autoresize placeholder="哪怕只做了一部分，也写实际发生的事。" class="w-full" />
+          </UFormField>
+          <UFormField label="体验复盘">
+            <UTextarea v-model="review.reflection" autoresize placeholder="做的时候有什么感受、身体信号或意外发现？" class="w-full" />
+          </UFormField>
+          <UFormField label="这次学到什么">
+            <UTextarea v-model="review.learning" autoresize placeholder="这次结果支持、修正或反驳了什么想法？" class="w-full" />
+          </UFormField>
+          <UFormField label="阻碍">
             <UTextarea v-model="review.barrier" autoresize placeholder="不是责备，只是把阻力看清楚。" class="w-full" />
           </UFormField>
           <div class="grid gap-3 md:grid-cols-2">
@@ -236,6 +255,8 @@ const draftKind = ref<'normal' | 'adventure'>('normal')
 const review = ref<any | null>(null)
 const categoryOpen = ref(false)
 const manageCategoryOpen = ref(false)
+const suggestingCategory = ref(false)
+const writingPrompt = ref(false)
 const editingCategoryId = ref<number | null>(null)
 const categoryDraft = reactive({
   title: '',
@@ -257,10 +278,26 @@ const draft = reactive({
   tiny_version: '',
   success_criterion: '',
   opportunity: '',
-  health_context: ''
+  health_context: '',
+  completion_score: 0,
+  actual_behavior: '',
+  learning: ''
 })
 const visibilityItems = [{ label: '私密', value: 'private' }, { label: '公开', value: 'public' }]
-const statusItems = [{ label: '进行中', value: 'active' }, { label: '草稿', value: 'draft' }]
+const statusItems = [
+  { label: '进行中', value: 'active' },
+  { label: '已完成', value: 'done' },
+  { label: '部分完成', value: 'partial' },
+  { label: '未执行', value: 'skipped' },
+  { label: '草稿', value: 'draft' }
+]
+const completionItems = [
+  { label: '0% 没开始', value: 0 },
+  { label: '25% 只做了一点', value: 25 },
+  { label: '50% 做了一半', value: 50 },
+  { label: '75% 基本做了', value: 75 },
+  { label: '100% 完整完成', value: 100 }
+]
 const failureReasonItems = [
   { label: '未选择', value: '' },
   { label: '动机不足', value: 'motivation' },
@@ -301,16 +338,19 @@ watch(editing, (value) => {
     tiny_version: value.tiny_version || '',
     success_criterion: value.success_criterion || '',
     opportunity: value.opportunity || '',
-    health_context: value.health_context || ''
+    health_context: value.health_context || '',
+    completion_score: value.completion_score || 0,
+    actual_behavior: value.actual_behavior || '',
+    learning: value.learning || ''
   })
 })
 
 function statusLabel(status: string) {
-  return ({ active: '进行中', done: '已完成', skipped: '未完成', draft: '草稿' } as Record<string, string>)[status] || status
+  return ({ active: '进行中', done: '已完成', partial: '部分完成', skipped: '未执行', draft: '草稿' } as Record<string, string>)[status] || status
 }
 
 function statusColor(status: string) {
-  return status === 'done' ? 'success' : status === 'skipped' ? 'warning' : status === 'active' ? 'primary' : 'neutral'
+  return status === 'done' ? 'success' : status === 'partial' ? 'primary' : status === 'skipped' ? 'warning' : status === 'active' ? 'primary' : 'neutral'
 }
 
 function mapDetails(item: any) {
@@ -386,6 +426,43 @@ async function saveCategory() {
   toast.add({ title: '类别已保存', color: 'success' })
 }
 
+async function suggestCategory() {
+  suggestingCategory.value = true
+  try {
+    const result = await $fetch<any>('/api/ai/adventure-category', { method: 'POST' })
+    editingCategoryId.value = null
+    Object.assign(categoryDraft, {
+      title: result.title || '',
+      description: result.description || '',
+      prompt_hint: result.prompt_hint || '',
+      sort_order: result.sort_order ?? 100
+    })
+  } catch (err: any) {
+    error.value = err?.statusMessage || err?.message || 'AI 推荐类别失败'
+  } finally {
+    suggestingCategory.value = false
+  }
+}
+
+async function writeCategoryPrompt() {
+  writingPrompt.value = true
+  try {
+    const result = await $fetch<any>('/api/ai/adventure-category-prompt', {
+      method: 'POST',
+      body: {
+        title: categoryDraft.title,
+        description: categoryDraft.description,
+        prompt_hint: categoryDraft.prompt_hint
+      }
+    })
+    categoryDraft.prompt_hint = result.prompt_hint || categoryDraft.prompt_hint
+  } catch (err: any) {
+    error.value = err?.statusMessage || err?.message || '生成提示词失败'
+  } finally {
+    writingPrompt.value = false
+  }
+}
+
 function editCategory(category: any) {
   editingCategoryId.value = category.id
   Object.assign(categoryDraft, {
@@ -428,13 +505,32 @@ async function saveDraft() {
   toast.add({ title: '实验已保存', color: 'success' })
 }
 
-function openReview(item: any, status: 'done' | 'skipped') {
+function openReview(item: any) {
+  const completion = Number(item.completion_score || 0)
   review.value = {
     ...item,
-    status,
+    completion_score: completion,
+    status: statusFromCompletion(completion),
+    actual_behavior: item.actual_behavior || '',
+    learning: item.learning || '',
     failure_reason: item.failure_reason || '',
-    verification_result: item.verification_result || (status === 'done' ? 'supports' : 'needs_revision')
+    verification_result: item.verification_result || (completion >= 75 ? 'supports' : completion > 0 ? 'partial' : 'needs_revision')
   }
+}
+
+function syncReviewStatus() {
+  if (!review.value) return
+  const completion = Number(review.value.completion_score || 0)
+  review.value.status = statusFromCompletion(completion)
+  if (!review.value.verification_result || review.value.verification_result === 'unknown') {
+    review.value.verification_result = completion >= 75 ? 'supports' : completion > 0 ? 'partial' : 'needs_revision'
+  }
+}
+
+function statusFromCompletion(completion: number) {
+  if (completion >= 100) return 'done'
+  if (completion > 0) return 'partial'
+  return 'skipped'
 }
 
 async function saveReview() {

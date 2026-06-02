@@ -3,7 +3,7 @@ import { z } from 'zod'
 const schema = z.object({
   title: z.string().min(1),
   description: z.string().default(''),
-  status: z.enum(['active', 'done', 'skipped', 'draft']),
+  status: z.enum(['active', 'done', 'partial', 'skipped', 'draft']),
   week_number: z.string().default(''),
   reflection: z.string().default(''),
   barrier: z.string().default(''),
@@ -17,14 +17,17 @@ const schema = z.object({
   failure_reason: z.string().default(''),
   opportunity: z.string().default(''),
   health_context: z.string().default(''),
-  verification_result: z.string().default('unknown')
+  verification_result: z.string().default('unknown'),
+  completion_score: z.number().int().min(0).max(100).default(0),
+  actual_behavior: z.string().default(''),
+  learning: z.string().default('')
 })
 
 export default defineEventHandler(async (event) => {
   const user = requireUser(event)
   const id = Number(getRouterParam(event, 'id'))
   const body = schema.parse(await readBody(event))
-  const doneAt = body.status === 'done' ? new Date().toISOString() : null
+  const doneAt = ['done', 'partial', 'skipped'].includes(body.status) ? new Date().toISOString() : null
   getDb().prepare(`
     UPDATE experiments SET
       title = @title,
@@ -43,6 +46,9 @@ export default defineEventHandler(async (event) => {
       failure_reason = @failure_reason,
       opportunity = @opportunity,
       health_context = @health_context,
+      completion_score = @completion_score,
+      actual_behavior = @actual_behavior,
+      learning = @learning,
       verification_result = @verification_result,
       done_at = @done_at,
       updated_at = CURRENT_TIMESTAMP

@@ -3,7 +3,7 @@ import { z } from 'zod'
 const schema = z.object({
   title: z.string().min(1),
   description: z.string().default(''),
-  status: z.enum(['active', 'done', 'skipped', 'draft']).default('active'),
+  status: z.enum(['active', 'done', 'partial', 'skipped', 'draft']).default('active'),
   week_number: z.string().default(''),
   visibility: z.enum(['private', 'public']).default('private'),
   suggested_by_ai: z.number().int().default(0),
@@ -15,7 +15,10 @@ const schema = z.object({
   success_criterion: z.string().default(''),
   failure_reason: z.string().default(''),
   opportunity: z.string().default(''),
-  health_context: z.string().default('')
+  health_context: z.string().default(''),
+  completion_score: z.number().int().min(0).max(100).default(0),
+  actual_behavior: z.string().default(''),
+  learning: z.string().default('')
 })
 
 export default defineEventHandler(async (event) => {
@@ -38,7 +41,10 @@ export default defineEventHandler(async (event) => {
       success_criterion,
       failure_reason,
       opportunity,
-      health_context
+      health_context,
+      completion_score,
+      actual_behavior,
+      learning
     )
     VALUES (
       @user_id,
@@ -56,7 +62,10 @@ export default defineEventHandler(async (event) => {
       @success_criterion,
       @failure_reason,
       @opportunity,
-      @health_context
+      @health_context,
+      @completion_score,
+      @actual_behavior,
+      @learning
     )
   `).run({ user_id: user.id, ...body })
   return { id: result.lastInsertRowid }
