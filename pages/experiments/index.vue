@@ -3,7 +3,7 @@
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
         <h1 class="text-2xl font-semibold text-slate-950">行动实验</h1>
-        <p class="mt-1 text-sm text-slate-500">只做一次、30 分钟内完成，用体验替代空想。</p>
+        <p class="mt-1 text-sm text-slate-500">可以短做，也可以长期分阶段推进，用过程记录把体验串起来。</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <UButton icon="i-lucide-dices" color="neutral" variant="soft" :loading="adventuring && !selectedAdventureCategoryId" @click="adventure()">
@@ -58,8 +58,47 @@
           <p v-if="item.failure_reason">缺口：{{ failureReasonLabel(item.failure_reason) }}</p>
           <p v-if="item.verification_result">验证：{{ verificationResultLabel(item.verification_result) }}</p>
         </div>
+        <div class="mt-3 rounded-lg border border-slate-100 bg-white p-3">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <p class="text-sm font-medium text-slate-800">阶段过程</p>
+              <p class="mt-1 text-xs text-slate-500">
+                {{ item.log_count ? `${item.log_count} 条记录，最近 ${item.latest_log_date}` : '还没有过程记录' }}
+              </p>
+            </div>
+            <UButton color="neutral" variant="ghost" icon="i-lucide-plus" size="sm" @click="openLog(item)">
+              记录阶段
+            </UButton>
+          </div>
+          <div v-if="item.logs?.length" class="mt-3 space-y-2">
+            <div
+              v-for="log in item.logs"
+              :key="log.id"
+              class="rounded-md bg-slate-50 p-3 text-sm"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <UBadge color="neutral" variant="soft">{{ log.log_date }}</UBadge>
+                  <span class="font-medium text-slate-800">{{ log.stage_title || '未命名阶段' }}</span>
+                  <span class="text-xs text-slate-500">{{ log.completion_score }}%</span>
+                </div>
+                <div class="flex gap-1">
+                  <UButton color="neutral" variant="ghost" icon="i-lucide-message-circle" size="xs" aria-label="复盘此阶段" :loading="reviewingKey === `log-${log.id}`" @click="startExperimentConversation(item, log)" />
+                  <UButton color="neutral" variant="ghost" icon="i-lucide-pencil" size="xs" aria-label="编辑阶段" @click="openLog(item, log)" />
+                  <UButton color="error" variant="ghost" icon="i-lucide-trash-2" size="xs" aria-label="删除阶段" :loading="deletingLogId === log.id" @click="deleteLog(log)" />
+                </div>
+              </div>
+              <p v-if="log.actual_behavior" class="mt-2 leading-6 text-slate-600">行动：{{ log.actual_behavior }}</p>
+              <p v-if="log.observation" class="leading-6 text-slate-600">观察：{{ log.observation }}</p>
+              <p v-if="log.learning" class="leading-6 text-slate-600">学习：{{ log.learning }}</p>
+              <p v-if="log.next_step" class="leading-6 text-slate-600">下一步：{{ log.next_step }}</p>
+            </div>
+          </div>
+        </div>
         <div class="mt-4 flex flex-wrap gap-2">
           <UButton color="primary" variant="soft" icon="i-lucide-clipboard-check" @click="openReview(item)">记录情况</UButton>
+          <UButton color="neutral" variant="soft" icon="i-lucide-plus" @click="openLog(item)">记录阶段</UButton>
+          <UButton color="neutral" variant="soft" icon="i-lucide-message-circle" :loading="reviewingKey === `experiment-${item.id}`" @click="startExperimentConversation(item)">AI 复盘</UButton>
           <UButton color="neutral" variant="ghost" icon="i-lucide-pencil" @click="editing = { ...item }">编辑</UButton>
         </div>
       </SectionCard>
@@ -228,18 +267,64 @@
         </form>
       </template>
     </UModal>
+
+    <UModal v-model:open="logOpen" title="记录阶段过程">
+      <template #body>
+        <form class="space-y-4" @submit.prevent="saveLog(false)">
+          <div v-if="logTarget?.experiment" class="rounded-lg bg-slate-50 p-3">
+            <p class="text-sm font-medium text-slate-900">{{ logTarget.experiment.title }}</p>
+            <p class="mt-1 text-xs leading-5 text-slate-500">记录某一阶段真实发生了什么，后续可以直接拉起对话做复盘。</p>
+          </div>
+          <div class="grid gap-3 md:grid-cols-2">
+            <UFormField label="日期" required>
+              <UInput v-model="logDraft.log_date" type="date" class="w-full" />
+            </UFormField>
+            <UFormField label="阶段名">
+              <UInput v-model="logDraft.stage_title" placeholder="例如：尝试第 1 天 / 调整触发提示" class="w-full" />
+            </UFormField>
+          </div>
+          <UFormField label="完成度">
+            <USelect v-model="logDraft.completion_score" :items="completionItems" class="w-full" />
+          </UFormField>
+          <UFormField label="实际做了什么">
+            <UTextarea v-model="logDraft.actual_behavior" autoresize placeholder="只写事实：时间、场景、做了哪一步、做到什么程度。" class="w-full" />
+          </UFormField>
+          <UFormField label="观察到什么">
+            <UTextarea v-model="logDraft.observation" autoresize placeholder="情绪、身体信号、环境变化、别人反应、自己想逃避的点。" class="w-full" />
+          </UFormField>
+          <div class="grid gap-3 md:grid-cols-2">
+            <UFormField label="阻碍">
+              <UTextarea v-model="logDraft.barrier" autoresize class="w-full" />
+            </UFormField>
+            <UFormField label="学到什么">
+              <UTextarea v-model="logDraft.learning" autoresize class="w-full" />
+            </UFormField>
+          </div>
+          <UFormField label="下一步">
+            <UTextarea v-model="logDraft.next_step" autoresize placeholder="下一次要维持、缩小、换触发点，还是换策略？" class="w-full" />
+          </UFormField>
+          <div class="flex flex-wrap gap-2">
+            <UButton type="submit" icon="i-lucide-save" :loading="savingLog">保存阶段</UButton>
+            <UButton type="button" color="neutral" variant="soft" icon="i-lucide-message-circle" :loading="savingLog && reviewAfterSave" @click="saveLog(true)">
+              保存并复盘
+            </UButton>
+          </div>
+        </form>
+      </template>
+    </UModal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
+import type { Experiment, ExperimentLog } from '~/types/app'
 
 const toast = useToast()
 const page = ref(1)
 const pageSize = 10
-const { data: experimentData, refresh } = await useFetch<PaginatedResponse<any>>('/api/experiments', {
+const { data: experimentData, refresh } = await useFetch<PaginatedResponse<Experiment>>('/api/experiments', {
   query: { page, pageSize },
-  default: () => emptyPaginatedResponse<any>(pageSize)
+  default: () => emptyPaginatedResponse<Experiment>(pageSize)
 })
 const { data: categoryData, refresh: refreshCategories } = await useFetch<any[]>('/api/adventure-categories', {
   default: () => []
@@ -253,6 +338,11 @@ const error = ref('')
 const editing = ref<any | null>(null)
 const draftKind = ref<'normal' | 'adventure'>('normal')
 const review = ref<any | null>(null)
+const logTarget = ref<{ experiment: Experiment, log: ExperimentLog | null } | null>(null)
+const savingLog = ref(false)
+const reviewAfterSave = ref(false)
+const deletingLogId = ref<number | null>(null)
+const reviewingKey = ref('')
 const categoryOpen = ref(false)
 const manageCategoryOpen = ref(false)
 const suggestingCategory = ref(false)
@@ -320,6 +410,20 @@ const draftOpen = computed({
 const reviewOpen = computed({
   get: () => review.value !== null,
   set: (value) => { if (!value) review.value = null }
+})
+const logOpen = computed({
+  get: () => logTarget.value !== null,
+  set: (value) => { if (!value) logTarget.value = null }
+})
+const logDraft = reactive({
+  log_date: appDateString(),
+  stage_title: '',
+  completion_score: 0,
+  actual_behavior: '',
+  observation: '',
+  barrier: '',
+  learning: '',
+  next_step: ''
 })
 
 watch(editing, (value) => {
@@ -541,4 +645,89 @@ async function saveReview() {
   await refresh()
   toast.add({ title: '结果已记录', color: 'success' })
 }
+
+function openLog(experiment: Experiment, log: ExperimentLog | null = null) {
+  logTarget.value = { experiment, log }
+  Object.assign(logDraft, {
+    log_date: log?.log_date || appDateString(),
+    stage_title: log?.stage_title || '',
+    completion_score: Number(log?.completion_score || 0),
+    actual_behavior: log?.actual_behavior || '',
+    observation: log?.observation || '',
+    barrier: log?.barrier || '',
+    learning: log?.learning || '',
+    next_step: log?.next_step || ''
+  })
+}
+
+async function saveLog(startReview = false) {
+  if (!logTarget.value) return
+  savingLog.value = true
+  reviewAfterSave.value = startReview
+  try {
+    const target = logTarget.value
+    const body = { ...logDraft, completion_score: Number(logDraft.completion_score || 0) }
+    const logId = target.log?.id
+    if (logId) {
+      await $fetch(`/api/experiment-logs/${logId}`, { method: 'PUT', body })
+    } else {
+      const created = await $fetch<{ id: number }>(`/api/experiments/${target.experiment.id}/logs`, { method: 'POST', body })
+      target.log = {
+        id: Number(created.id),
+        user_id: target.experiment.user_id,
+        experiment_id: target.experiment.id,
+        created_at: '',
+        updated_at: '',
+        ...body
+      }
+    }
+    logTarget.value = null
+    await refresh()
+    if (startReview && target.log) {
+      await startExperimentConversation(target.experiment, target.log)
+      return
+    }
+    toast.add({ title: '阶段已记录', color: 'success' })
+  } catch (err: any) {
+    error.value = err?.statusMessage || err?.message || '保存阶段失败'
+  } finally {
+    savingLog.value = false
+    reviewAfterSave.value = false
+  }
+}
+
+async function deleteLog(log: ExperimentLog) {
+  if (!confirm('确定删除这条阶段记录吗？删除后无法恢复。')) return
+  deletingLogId.value = log.id
+  try {
+    await $fetch(`/api/experiment-logs/${log.id}`, { method: 'DELETE' })
+    await refresh()
+    toast.add({ title: '阶段记录已删除', color: 'success' })
+  } catch (err: any) {
+    error.value = err?.statusMessage || err?.message || '删除阶段失败'
+  } finally {
+    deletingLogId.value = null
+  }
+}
+
+async function startExperimentConversation(experiment: Experiment, log: ExperimentLog | null = null) {
+  const key = log?.id ? `log-${log.id}` : `experiment-${experiment.id}`
+  reviewingKey.value = key
+  error.value = ''
+  try {
+    const result = await $fetch<any>(`/api/experiments/${experiment.id}/conversation`, {
+      method: 'POST',
+      body: { log_id: log?.id || null }
+    })
+    if (result.error) {
+      toast.add({ title: '复盘对话已创建，AI 暂时没有回复', description: result.error, color: 'warning' })
+    }
+    await navigateTo(`/explore?conversation=${result.conversationId}`)
+  } catch (err: any) {
+    error.value = err?.statusMessage || err?.message || '创建复盘对话失败'
+  } finally {
+    reviewingKey.value = ''
+  }
+}
+
 </script>

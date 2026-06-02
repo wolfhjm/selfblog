@@ -44,6 +44,15 @@ export function collectPeriodReviewSources(db: Db, userId: number, input: Period
     ORDER BY created_at ASC
   `).all(userId, input.startDate, input.endDate, input.startDate, input.endDate, input.startDate, input.endDate)
 
+  const experimentLogs = db.prepare(`
+    SELECT experiment_logs.*, experiments.title AS experiment_title
+    FROM experiment_logs
+    JOIN experiments ON experiments.id = experiment_logs.experiment_id
+    WHERE experiment_logs.user_id = ?
+      AND experiment_logs.log_date BETWEEN ? AND ?
+    ORDER BY experiment_logs.log_date ASC, experiment_logs.created_at ASC
+  `).all(userId, input.startDate, input.endDate)
+
   const candidates = db.prepare(`
     SELECT id, candidate_type, title, content, status, accepted_object_type, accepted_object_id, created_at, updated_at
     FROM candidates
@@ -55,7 +64,7 @@ export function collectPeriodReviewSources(db: Db, userId: number, input: Period
     ORDER BY updated_at ASC, created_at ASC
   `).all(userId, input.startDate, input.endDate, input.startDate, input.endDate)
 
-  return { checkins, journals, experiments, candidates }
+  return { checkins, journals, experiments, experimentLogs, candidates }
 }
 
 export function summarizePeriodReviewSources(sources: ReturnType<typeof collectPeriodReviewSources>) {
@@ -63,6 +72,7 @@ export function summarizePeriodReviewSources(sources: ReturnType<typeof collectP
     checkins: sources.checkins.length,
     journals: sources.journals.length,
     experiments: sources.experiments.length,
+    experiment_logs: sources.experimentLogs.length,
     candidates: sources.candidates.length
   }
 }
@@ -86,6 +96,10 @@ export function fallbackPeriodReviewDraft(input: PeriodReviewInput, sources: Ret
     .slice(0, 5)
     .map((item: any) => `- ${item.title}：${item.status}${item.completion_score ? `；完成度 ${item.completion_score}%` : ''}${item.learning ? `；学到：${item.learning}` : item.reflection ? `；复盘：${item.reflection}` : ''}`)
     .join('\n') || '- 暂无实验记录'
+  const topExperimentLogs = sources.experimentLogs
+    .slice(0, 8)
+    .map((item: any) => `- ${item.log_date}｜${item.experiment_title}｜${item.stage_title || '阶段记录'}：${item.completion_score}%；行动：${item.actual_behavior || '未写'}；观察：${item.observation || '未写'}；下一步：${item.next_step || '未写'}`)
+    .join('\n') || '- 暂无阶段过程记录'
   const acceptedCandidates = sources.candidates.filter((item: any) => item.status === 'accepted').length
 
   return [
@@ -102,12 +116,16 @@ export function fallbackPeriodReviewDraft(input: PeriodReviewInput, sources: Ret
     `## 实验与行动`,
     topExperiments,
     '',
+    `## 实验阶段过程`,
+    topExperimentLogs,
+    '',
     `## 候选和入库`,
     `- 本周期产生候选 ${sources.candidates.length} 条，已确认 ${acceptedCandidates} 条。`,
     '',
     `## 可能值得继续追问`,
     `- 哪一类事件最容易触发情绪波动？`,
     `- 哪个行动不是缺意志力，而是缺能力、机会或提示？`,
+    `- 哪个长期实验已经进入新阶段，需要调整目标行为、提示或更小版本？`,
     `- 有没有一个洞察已经有多个事件支持，值得升级为规律或原则？`,
     '',
     `## 下周期一个很小的动作`,

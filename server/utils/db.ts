@@ -182,6 +182,22 @@ function migrate(database: Database.Database) {
       UNIQUE(user_id, title)
     );
 
+    CREATE TABLE IF NOT EXISTS experiment_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      experiment_id INTEGER NOT NULL REFERENCES experiments(id) ON DELETE CASCADE,
+      log_date TEXT NOT NULL,
+      stage_title TEXT NOT NULL DEFAULT '',
+      completion_score INTEGER NOT NULL DEFAULT 0,
+      actual_behavior TEXT NOT NULL DEFAULT '',
+      observation TEXT NOT NULL DEFAULT '',
+      barrier TEXT NOT NULL DEFAULT '',
+      learning TEXT NOT NULL DEFAULT '',
+      next_step TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS cognitive_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -268,6 +284,7 @@ function migrate(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_candidates_user_status ON candidates(user_id, status, updated_at);
     CREATE INDEX IF NOT EXISTS idx_event_chains_source ON event_chains(user_id, source_type, source_id);
     CREATE INDEX IF NOT EXISTS idx_extracted_events_chain ON extracted_events(user_id, event_chain_id, sort_order);
+    CREATE INDEX IF NOT EXISTS idx_experiment_logs_experiment ON experiment_logs(user_id, experiment_id, log_date);
   `)
 
   ensureColumn(database, 'principles', 'verification_status', "TEXT NOT NULL DEFAULT 'unverified'")

@@ -110,6 +110,25 @@ export interface Experiment {
   done_at: string | null
   created_at: string
   updated_at: string
+  logs?: ExperimentLog[]
+  log_count?: number
+  latest_log_date?: string | null
+}
+
+export interface ExperimentLog {
+  id: number
+  user_id: number
+  experiment_id: number
+  log_date: string
+  stage_title: string
+  completion_score: number
+  actual_behavior: string
+  observation: string
+  barrier: string
+  learning: string
+  next_step: string
+  created_at: string
+  updated_at: string
 }
 
 export interface CognitiveItem {
