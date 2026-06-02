@@ -6,8 +6,14 @@
         <p class="mt-1 text-sm text-slate-500">只做一次、30 分钟内完成，用体验替代空想。</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <UButton icon="i-lucide-dices" color="neutral" variant="soft" :loading="adventuring" @click="adventure">
-          随机大冒险
+        <UButton icon="i-lucide-dices" color="neutral" variant="soft" :loading="adventuring && !selectedAdventureCategoryId" @click="adventure()">
+          完全随机
+        </UButton>
+        <UButton icon="i-lucide-list-filter" color="neutral" variant="soft" @click="categoryOpen = true">
+          类别随机
+        </UButton>
+        <UButton icon="i-lucide-settings-2" color="neutral" variant="ghost" @click="manageCategoryOpen = true">
+          管理类别
         </UButton>
         <UButton icon="i-lucide-sparkles" :loading="suggesting" @click="suggest">AI 推荐</UButton>
       </div>
@@ -124,6 +130,64 @@
       </template>
     </UModal>
 
+    <UModal v-model:open="categoryOpen" title="选择大冒险类别">
+      <template #body>
+        <div class="space-y-3">
+          <button
+            v-for="category in adventureCategories"
+            :key="category.id"
+            class="w-full rounded-lg border border-slate-100 bg-white p-3 text-left transition hover:border-teal-300"
+            @click="adventure(category.id)"
+          >
+            <p class="font-medium text-slate-950">{{ category.title }}</p>
+            <p class="mt-1 text-sm leading-6 text-slate-500">{{ category.description || '没有描述。' }}</p>
+          </button>
+          <p v-if="!adventureCategories.length" class="text-sm text-slate-500">还没有类别，可以先去管理类别里新增。</p>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="manageCategoryOpen" title="管理随机类别">
+      <template #body>
+        <form class="space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-3" @submit.prevent="saveCategory">
+          <UFormField label="类别名" required>
+            <UInput v-model="categoryDraft.title" class="w-full" />
+          </UFormField>
+          <UFormField label="描述">
+            <UTextarea v-model="categoryDraft.description" autoresize class="w-full" />
+          </UFormField>
+          <UFormField label="生成提示">
+            <UTextarea v-model="categoryDraft.prompt_hint" autoresize placeholder="告诉 AI 这个类别应该怎么生成" class="w-full" />
+          </UFormField>
+          <div class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+            <UFormField label="排序">
+              <UInput v-model.number="categoryDraft.sort_order" type="number" class="w-full" />
+            </UFormField>
+            <UButton type="submit" icon="i-lucide-save">{{ editingCategoryId ? '更新类别' : '新增类别' }}</UButton>
+          </div>
+        </form>
+
+        <div class="mt-4 space-y-2">
+          <div
+            v-for="category in adventureCategories"
+            :key="category.id"
+            class="rounded-lg border border-slate-100 bg-white p-3"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="font-medium text-slate-950">{{ category.title }}</p>
+                <p class="mt-1 text-sm leading-6 text-slate-500">{{ category.description || '没有描述。' }}</p>
+              </div>
+              <div class="flex gap-1">
+                <UButton color="neutral" variant="ghost" icon="i-lucide-pencil" aria-label="编辑类别" @click="editCategory(category)" />
+                <UButton color="error" variant="ghost" icon="i-lucide-trash-2" aria-label="删除类别" @click="deleteCategory(category)" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
     <UModal v-model:open="reviewOpen" title="记录实验结果">
       <template #body>
         <form class="space-y-4" @submit.prevent="saveReview">
@@ -158,13 +222,27 @@ const { data: experimentData, refresh } = await useFetch<PaginatedResponse<any>>
   query: { page, pageSize },
   default: () => emptyPaginatedResponse<any>(pageSize)
 })
+const { data: categoryData, refresh: refreshCategories } = await useFetch<any[]>('/api/adventure-categories', {
+  default: () => []
+})
 const experiments = computed(() => experimentData.value?.items || [])
+const adventureCategories = computed(() => categoryData.value || [])
 const suggesting = ref(false)
 const adventuring = ref(false)
+const selectedAdventureCategoryId = ref<number | null>(null)
 const error = ref('')
 const editing = ref<any | null>(null)
 const draftKind = ref<'normal' | 'adventure'>('normal')
 const review = ref<any | null>(null)
+const categoryOpen = ref(false)
+const manageCategoryOpen = ref(false)
+const editingCategoryId = ref<number | null>(null)
+const categoryDraft = reactive({
+  title: '',
+  description: '',
+  prompt_hint: '',
+  sort_order: 100
+})
 const draft = reactive({
   title: '',
   description: '',
@@ -270,12 +348,16 @@ async function suggest() {
   }
 }
 
-async function adventure() {
+async function adventure(categoryId: number | null = null) {
   adventuring.value = true
+  selectedAdventureCategoryId.value = categoryId
   error.value = ''
   draftKind.value = 'adventure'
   try {
-    const result = await $fetch<any>('/api/ai/adventure-experiment', { method: 'POST' })
+    const result = await $fetch<any>('/api/ai/adventure-experiment', {
+      method: 'POST',
+      body: { category_id: categoryId }
+    })
     editing.value = {
       ...result,
       status: 'draft',
@@ -283,11 +365,52 @@ async function adventure() {
       suggested_by_ai: 1,
       week_number: appDateString()
     }
+    categoryOpen.value = false
   } catch (err: any) {
     error.value = err?.statusMessage || err?.message || '随机大冒险生成失败，请稍后再试'
   } finally {
     adventuring.value = false
+    selectedAdventureCategoryId.value = null
   }
+}
+
+async function saveCategory() {
+  const body = { ...categoryDraft }
+  if (editingCategoryId.value) {
+    await $fetch(`/api/adventure-categories/${editingCategoryId.value}`, { method: 'PUT', body })
+  } else {
+    await $fetch('/api/adventure-categories', { method: 'POST', body })
+  }
+  resetCategoryDraft()
+  await refreshCategories()
+  toast.add({ title: '类别已保存', color: 'success' })
+}
+
+function editCategory(category: any) {
+  editingCategoryId.value = category.id
+  Object.assign(categoryDraft, {
+    title: category.title || '',
+    description: category.description || '',
+    prompt_hint: category.prompt_hint || '',
+    sort_order: category.sort_order ?? 100
+  })
+}
+
+async function deleteCategory(category: any) {
+  await $fetch(`/api/adventure-categories/${category.id}`, { method: 'DELETE' })
+  if (editingCategoryId.value === category.id) resetCategoryDraft()
+  await refreshCategories()
+  toast.add({ title: '类别已删除', color: 'success' })
+}
+
+function resetCategoryDraft() {
+  editingCategoryId.value = null
+  Object.assign(categoryDraft, {
+    title: '',
+    description: '',
+    prompt_hint: '',
+    sort_order: 100
+  })
 }
 
 async function saveDraft() {

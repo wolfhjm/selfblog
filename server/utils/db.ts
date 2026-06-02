@@ -166,6 +166,19 @@ function migrate(database: Database.Database) {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS adventure_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      prompt_hint TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, title)
+    );
+
     CREATE TABLE IF NOT EXISTS cognitive_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -294,6 +307,7 @@ function seed(database: Database.Database) {
   }
 
   const count = database.prepare('SELECT COUNT(*) as count FROM principles WHERE user_id = ?').get(userId) as { count: number }
+  seedAdventureCategories(database, userId)
   if (count.count > 0) return
 
   const insertPrinciple = database.prepare(`
@@ -346,4 +360,68 @@ function seed(database: Database.Database) {
     '选择一个平时不会主动接触的主题，花 30 分钟读一篇文章、看一段访谈或体验一个小工具，然后记录一句“它让我意外的地方”。',
     appDateString()
   )
+}
+
+function seedAdventureCategories(database: Database.Database, userId: number) {
+  const count = database.prepare('SELECT COUNT(*) as count FROM adventure_categories WHERE user_id = ?').get(userId) as { count: number }
+  if (count.count > 0) return
+
+  const insert = database.prepare(`
+    INSERT INTO adventure_categories (user_id, title, description, prompt_hint, sort_order)
+    VALUES (@user_id, @title, @description, @prompt_hint, @sort_order)
+  `)
+  const categories = [
+    {
+      title: '新输入',
+      description: '读、看、听一个平时不会主动接触的主题。',
+      prompt_hint: '生成一个低成本陌生输入实验，重点是拓宽经验样本，不要求立刻产出。',
+      sort_order: 10
+    },
+    {
+      title: '微社交',
+      description: '轻量连接，不强迫高压社交。',
+      prompt_hint: '生成一个安全、低压力、可退出的微社交实验，避免尴尬挑战和强迫表达。',
+      sort_order: 20
+    },
+    {
+      title: '身体感知',
+      description: '观察走路、呼吸、姿态、疲劳和身体信号。',
+      prompt_hint: '生成一个身体观察实验，重点是看见状态，不追求运动强度。',
+      sort_order: 30
+    },
+    {
+      title: '环境变化',
+      description: '换路线、换位置、整理一个角落或改变默认选项。',
+      prompt_hint: '生成一个环境设计实验，让用户用很小的空间或路线变化打破惯性。',
+      sort_order: 40
+    },
+    {
+      title: '微创作',
+      description: '写一句、画一张、录一段或做一个小表达。',
+      prompt_hint: '生成一个不发布、不求好看的微创作实验，降低评价压力。',
+      sort_order: 50
+    },
+    {
+      title: '反惯性',
+      description: '用不同顺序做一件日常小事，观察自动驾驶。',
+      prompt_hint: '生成一个反惯性实验，动作要小、可逆、安全，重点是观察自动反应。',
+      sort_order: 60
+    },
+    {
+      title: '勇气练习',
+      description: '做一个低风险但有点不舒服的小表达。',
+      prompt_hint: '生成一个低风险勇气实验，必须允许退一步版本，不制造高风险冲突。',
+      sort_order: 70
+    },
+    {
+      title: '思辨训练',
+      description: '随机一个观点，写证据、反例和隐含前提。',
+      prompt_hint: '生成一个思辨练习实验，围绕主张、证据、隐含前提和反例展开。',
+      sort_order: 80
+    }
+  ]
+
+  for (const category of categories) {
+    insert.run({ user_id: userId, ...category })
+  }
 }

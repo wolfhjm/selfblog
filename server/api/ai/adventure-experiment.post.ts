@@ -1,18 +1,20 @@
-const adventureThemes = [
-  '换一种路线或地点',
-  '和一个人产生轻量连接',
-  '尝试一个陌生输入',
-  '做一个微型创作',
-  '打破一个自动化习惯',
-  '观察身体和环境',
-  '主动请求一个小反馈',
-  '给日常动作加一点游戏规则'
-]
+import { z } from 'zod'
+
+const schema = z.object({
+  category_id: z.number().int().positive().nullable().optional()
+})
 
 export default defineEventHandler(async (event) => {
   const user = requireUser(event)
+  const body = schema.parse(await readBody(event).catch(() => ({})))
   const db = getDb()
-  const theme = adventureThemes[Math.floor(Math.random() * adventureThemes.length)]
+  const categories = db.prepare(`
+    SELECT id, title, description, prompt_hint
+    FROM adventure_categories
+    WHERE user_id = ? AND status = 'active'
+    ORDER BY sort_order ASC, created_at ASC
+  `).all(user.id) as Array<{ id: number, title: string, description: string, prompt_hint: string }>
+  const category = selectCategory(categories, body.category_id || null)
   const checkins = db.prepare(`
     SELECT date, done_text, feeling_text, mood
     FROM checkins
@@ -44,19 +46,44 @@ export default defineEventHandler(async (event) => {
       },
       {
         role: 'user',
-        content: JSON.stringify({ theme, checkins, latestExperiments }, null, 2)
+        content: JSON.stringify({ category, checkins, latestExperiments }, null, 2)
       }
     ], { temperature: 0.85 })
 
-    return normalizeAdventureExperiment(JSON.parse(raw), theme)
+    return {
+      ...normalizeAdventureExperiment(JSON.parse(raw), category),
+      category
+    }
   } catch {
-    return fallbackAdventureExperiment(theme)
+    return {
+      ...fallbackAdventureExperiment(category),
+      category
+    }
   }
 })
 
-function normalizeAdventureExperiment(parsed: any, theme: string) {
+function selectCategory(
+  categories: Array<{ id: number, title: string, description: string, prompt_hint: string }>,
+  categoryId: number | null
+) {
+  if (!categories.length) {
+    return {
+      id: null,
+      title: '完全随机',
+      description: '安全、低成本、有一点新鲜感的小尝试。',
+      prompt_hint: '生成一个不危险、不违法、不涉及大额消费、不强迫社交的随机小实验。'
+    }
+  }
+  if (categoryId) {
+    const matched = categories.find((item) => item.id === categoryId)
+    if (matched) return matched
+  }
+  return categories[Math.floor(Math.random() * categories.length)]
+}
+
+function normalizeAdventureExperiment(parsed: any, category: { title: string, description: string }) {
   return {
-    title: String(parsed.title || `${theme}大冒险`).slice(0, 80),
+    title: String(parsed.title || `${category.title}大冒险`).slice(0, 80),
     description: String(parsed.description || '').slice(0, 600),
     target_behavior: String(parsed.target_behavior || '').slice(0, 240),
     motivation: String(parsed.motivation || '').slice(0, 300),
@@ -64,14 +91,14 @@ function normalizeAdventureExperiment(parsed: any, theme: string) {
     prompt: String(parsed.prompt || '').slice(0, 240),
     tiny_version: String(parsed.tiny_version || '').slice(0, 240),
     success_criterion: String(parsed.success_criterion || '').slice(0, 240),
-    opportunity: String(parsed.opportunity || theme).slice(0, 300),
+    opportunity: String(parsed.opportunity || category.description || category.title).slice(0, 300),
     health_context: String(parsed.health_context || '如果今天精力低，就只做更小版本。').slice(0, 300)
   }
 }
 
-function fallbackAdventureExperiment(theme: string) {
+function fallbackAdventureExperiment(category: { title: string, description: string }) {
   return {
-    title: `${theme}大冒险`,
+    title: `${category.title}大冒险`,
     description: '用一个很小、可逆、低成本的动作给今天增加一点新经验。重点不是做得多好，而是获得一个新的样本。',
     target_behavior: '在今天找一个安全的小场景，做一次和平时不一样的选择，并记录一句观察。',
     motivation: '通过轻量新体验打破自动驾驶，给自己增加可回看的经验材料。',
@@ -79,7 +106,7 @@ function fallbackAdventureExperiment(theme: string) {
     prompt: '当你下一次准备按惯性做同一件事时，先停 10 秒。',
     tiny_version: '只观察一个不同选择，不真的行动。',
     success_criterion: '完成一次不同选择，并写下一句话：它让我注意到什么？',
-    opportunity: theme,
+    opportunity: category.description || category.title,
     health_context: '如果疲惫或压力高，只做观察版，不增加额外负担。'
   }
 }
