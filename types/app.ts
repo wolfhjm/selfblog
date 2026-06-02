@@ -121,6 +121,10 @@ export interface ObjectLink {
   confidence: number
   status: string
   created_by: string
+  source_title?: string | null
+  target_title?: string | null
+  source_experiment_title?: string | null
+  target_experiment_title?: string | null
   created_at: string
 }
 

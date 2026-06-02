@@ -346,7 +346,7 @@ async function deleteLink(link: ObjectLink) {
 }
 
 function itemTypeLabel(type: string) {
-  return ({ pattern: '规律', case: '小事件', reaction: '感受/反应', lesson: '经验教训', insight: '洞察' } as Record<string, string>)[type] || type
+  return ({ pattern: '规律', case: '小事件', reaction: '感受/反应', lesson: '经验教训', insight: '洞察', experiment: '实验' } as Record<string, string>)[type] || type
 }
 
 function verificationLabel(status: string) {
@@ -368,6 +368,10 @@ function linkPeerLabel(link: ObjectLink) {
   const isSource = link.source_type === selected.value.item_type && link.source_id === selected.value.id
   const peerType = isSource ? link.target_type : link.source_type
   const peerId = isSource ? link.target_id : link.source_id
+  const peerTitle = isSource
+    ? (link.target_title || link.target_experiment_title)
+    : (link.source_title || link.source_experiment_title)
+  if (peerTitle) return `${itemTypeLabel(peerType)} / ${peerTitle}`
   const peer = items.value.find((item) => item.item_type === peerType && item.id === peerId)
   return peer ? `${itemTypeLabel(peer.item_type)} / ${peer.title}` : `${peerType} #${peerId}`
 }
