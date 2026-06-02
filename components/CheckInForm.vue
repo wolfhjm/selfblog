@@ -4,7 +4,7 @@
       v-if="hasSavedCheckin"
       class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700"
     >
-      今日打卡已记录。修改内容后可以再次更新，不会重复新增。
+      {{ savedHint }}
     </p>
     <UFormField label="今天做了什么">
       <UTextarea v-model="form.done_text" autoresize placeholder="哪怕只是一点点，也算数。" class="w-full" />
@@ -40,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ initial?: any, date: string }>()
+const props = defineProps<{ initial?: any, date: string, label?: string }>()
 const emit = defineEmits<{ saved: [] }>()
 const toast = useToast()
 const loading = ref(false)
@@ -55,13 +55,15 @@ const savedSnapshot = ref(snapshotForm(form))
 
 const isDirty = computed(() => snapshotForm(form) !== savedSnapshot.value)
 const buttonLabel = computed(() => {
-  if (!hasSavedCheckin.value) return '保存今日打卡'
-  return isDirty.value ? '更新今日打卡' : '今日打卡已记录'
+  const label = props.label || '打卡'
+  if (!hasSavedCheckin.value) return `保存${label}`
+  return isDirty.value ? `更新${label}` : `${label}已记录`
 })
 const buttonIcon = computed(() => {
   if (!hasSavedCheckin.value || isDirty.value) return 'i-lucide-check'
   return 'i-lucide-check-check'
 })
+const savedHint = computed(() => `${props.label || '打卡'}已记录。修改内容后可以再次更新，不会重复新增。`)
 
 watch(() => props.date, (date) => {
   form.date = date

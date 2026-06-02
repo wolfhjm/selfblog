@@ -9,9 +9,42 @@ const schema = z.object({
 export default defineEventHandler(async (event) => {
   const user = requireUser(event)
   const body = schema.parse(await readBody(event))
-  const result = getDb().prepare(`
-    INSERT INTO insights (user_id, content, source_conversation_id, visibility)
-    VALUES (@user_id, @content, @source_conversation_id, @visibility)
-  `).run({ user_id: user.id, source_conversation_id: null, ...body })
-  return { id: result.lastInsertRowid }
+  const db = getDb()
+  const transaction = db.transaction(() => {
+    const insight = db.prepare(`
+      INSERT INTO insights (user_id, content, source_conversation_id, visibility)
+      VALUES (@user_id, @content, @source_conversation_id, @visibility)
+    `).run({ user_id: user.id, source_conversation_id: null, ...body })
+
+    const item = db.prepare(`
+      INSERT INTO cognitive_items (
+        user_id,
+        item_type,
+        title,
+        content,
+        source_type,
+        source_id,
+        verification_status,
+        visibility
+      )
+      VALUES (?, 'insight', ?, ?, 'insight', ?, 'unverified', ?)
+    `).run(
+      user.id,
+      insightTitle(body.content),
+      body.content,
+      Number(insight.lastInsertRowid),
+      body.visibility
+    )
+
+    return { id: insight.lastInsertRowid, cognitive_item_id: item.lastInsertRowid }
+  })
+
+  return transaction()
 })
+
+function insightTitle(content: string) {
+  return content
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 32) || '未命名洞察'
+}

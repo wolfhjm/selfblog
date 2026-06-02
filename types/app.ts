@@ -39,6 +39,20 @@ export interface Checkin {
   created_at: string
 }
 
+export interface PeriodReview {
+  id: number
+  user_id: number
+  period_type: string
+  start_date: string
+  end_date: string
+  title: string
+  content: string
+  source_summary: string
+  visibility: Visibility
+  created_at: string
+  updated_at: string
+}
+
 export interface Conversation {
   id: number
   user_id: number

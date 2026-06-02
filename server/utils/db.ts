@@ -127,6 +127,20 @@ function migrate(database: Database.Database) {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS period_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      period_type TEXT NOT NULL DEFAULT 'week',
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      source_summary TEXT NOT NULL DEFAULT '{}',
+      visibility TEXT NOT NULL DEFAULT 'private',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS experiments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
