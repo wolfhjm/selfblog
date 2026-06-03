@@ -28,6 +28,7 @@ const { user, logout } = useAuth()
 const nav = [
   { label: '仪表盘', to: '/', icon: 'i-lucide-layout-dashboard' },
   { label: '探索', to: '/explore', icon: 'i-lucide-message-circle' },
+  { label: '思维', to: '/thinking', icon: 'i-lucide-brain' },
   { label: '地图', to: '/map', icon: 'i-lucide-network' },
   { label: '收件箱', to: '/inbox', icon: 'i-lucide-inbox' },
   { label: '实验', to: '/experiments', icon: 'i-lucide-flask-conical' },

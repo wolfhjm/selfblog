@@ -5,6 +5,8 @@ export type CognitiveItemType = 'pattern' | 'case' | 'reaction' | 'lesson' | 'in
 export type VerificationStatus = 'unverified' | 'has_example' | 'testing' | 'partial' | 'strong' | 'needs_revision' | 'discarded'
 export type CandidateType = CognitiveItemType | 'experiment'
 export type CandidateStatus = 'pending' | 'accepted' | 'dismissed'
+export type ThinkingChallengeWorld = 'reality' | 'fantasy'
+export type ThinkingChallengeStatus = 'draft' | 'active' | 'archived'
 
 export interface User {
   id: number
@@ -130,4 +132,44 @@ export interface Candidate {
   accepted_object_id: number | null
   created_at: string
   updated_at: string
+}
+
+export interface ThinkingChallengeOption {
+  key: string
+  label: string
+  explanation: string
+}
+
+export interface ThinkingChallenge {
+  id: number
+  user_id: number
+  title: string
+  world_type: ThinkingChallengeWorld
+  fallacy_type: string
+  difficulty: number
+  prompt: string
+  question: string
+  options: string
+  correct_option: string
+  short_explanation: string
+  deep_explanation: string
+  rebuttal: string
+  tags: string
+  status: ThinkingChallengeStatus
+  visibility: Visibility
+  created_at: string
+  updated_at: string
+  attempt_count?: number
+  correct_count?: number
+  last_attempt_at?: string | null
+}
+
+export interface ThinkingAttempt {
+  id: number
+  user_id: number
+  challenge_id: number
+  selected_option: string
+  is_correct: number
+  reason: string
+  created_at: string
 }

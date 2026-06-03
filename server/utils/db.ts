@@ -188,10 +188,43 @@ function migrate(database: Database.Database) {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS thinking_challenges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      world_type TEXT NOT NULL DEFAULT 'reality',
+      fallacy_type TEXT NOT NULL DEFAULT '',
+      difficulty INTEGER NOT NULL DEFAULT 1 CHECK(difficulty BETWEEN 1 AND 5),
+      prompt TEXT NOT NULL DEFAULT '',
+      question TEXT NOT NULL DEFAULT '',
+      options TEXT NOT NULL DEFAULT '[]',
+      correct_option TEXT NOT NULL DEFAULT '',
+      short_explanation TEXT NOT NULL DEFAULT '',
+      deep_explanation TEXT NOT NULL DEFAULT '',
+      rebuttal TEXT NOT NULL DEFAULT '',
+      tags TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      visibility TEXT NOT NULL DEFAULT 'private',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS thinking_attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      challenge_id INTEGER NOT NULL REFERENCES thinking_challenges(id) ON DELETE CASCADE,
+      selected_option TEXT NOT NULL,
+      is_correct INTEGER NOT NULL DEFAULT 0,
+      reason TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS idx_cognitive_items_user_type ON cognitive_items(user_id, item_type, updated_at);
     CREATE INDEX IF NOT EXISTS idx_object_links_source ON object_links(user_id, source_type, source_id);
     CREATE INDEX IF NOT EXISTS idx_object_links_target ON object_links(user_id, target_type, target_id);
     CREATE INDEX IF NOT EXISTS idx_candidates_user_status ON candidates(user_id, status, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_thinking_challenges_user_world ON thinking_challenges(user_id, world_type, status, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_thinking_attempts_user_challenge ON thinking_attempts(user_id, challenge_id, created_at);
   `)
 
   ensureColumn(database, 'principles', 'verification_status', "TEXT NOT NULL DEFAULT 'unverified'")
@@ -222,7 +255,10 @@ function seed(database: Database.Database) {
   }
 
   const count = database.prepare('SELECT COUNT(*) as count FROM principles WHERE user_id = ?').get(userId) as { count: number }
-  if (count.count > 0) return
+  if (count.count > 0) {
+    seedThinkingChallenges(database, userId)
+    return
+  }
 
   const insertPrinciple = database.prepare(`
     INSERT INTO principles (user_id, slug, title, category, description, source, application, example, visibility)
@@ -274,4 +310,96 @@ function seed(database: Database.Database) {
     '选择一个平时不会主动接触的主题，花 30 分钟读一篇文章、看一段访谈或体验一个小工具，然后记录一句“它让我意外的地方”。',
     appDateString()
   )
+
+  seedThinkingChallenges(database, userId)
+}
+
+function seedThinkingChallenges(database: Database.Database, userId: number) {
+  const count = database.prepare('SELECT COUNT(*) as count FROM thinking_challenges WHERE user_id = ?').get(userId) as { count: number }
+  if (count.count > 0) return
+
+  const insertChallenge = database.prepare(`
+    INSERT INTO thinking_challenges (
+      user_id,
+      title,
+      world_type,
+      fallacy_type,
+      difficulty,
+      prompt,
+      question,
+      options,
+      correct_option,
+      short_explanation,
+      deep_explanation,
+      rebuttal,
+      tags,
+      visibility
+    )
+    VALUES (
+      @user_id,
+      @title,
+      @world_type,
+      @fallacy_type,
+      @difficulty,
+      @prompt,
+      @question,
+      @options,
+      @correct_option,
+      @short_explanation,
+      @deep_explanation,
+      @rebuttal,
+      @tags,
+      @visibility
+    )
+  `)
+
+  const challenges = [
+    {
+      title: 'AI 写的方案为什么不能直接交？',
+      world_type: 'reality',
+      fallacy_type: '偷换概念',
+      difficulty: 2,
+      prompt: '你用 AI 很快写出一份方案。领导说：“既然 AI 都能写出来，那你其实没什么价值。”同事补了一句：“AI 写得这么快，所以人类思考已经没必要了。”',
+      question: '这段话里最明显的逻辑问题是什么？',
+      options: [
+        { key: 'A', label: '偷换概念：把“AI 能生成文本”偷换成“人类思考没价值”', explanation: '正确。生成文本不等于理解、判断、负责和解释。' },
+        { key: 'B', label: '诉诸多数：因为很多人用 AI，所以 AI 一定正确', explanation: '这里没有用“多数人都这么做”作为主要论据。' },
+        { key: 'C', label: '循环论证：因为 AI 有价值，所以 AI 有价值', explanation: '这段话不是在用结论证明结论。' },
+        { key: 'D', label: '没有问题', explanation: '这段话把不同概念混在一起，确实有明显问题。' }
+      ],
+      correct_option: 'A',
+      short_explanation: 'AI 能生成内容，不等于人类思考、理解和责任没有价值。',
+      deep_explanation: '这段论证把“AI 可以产出一段方案文本”偷换成了“人类不需要理解方案”。真正的工作价值还包括定义问题、判断输出是否可靠、解释关键逻辑、承担后果和做取舍。',
+      rebuttal: 'AI 可以帮我提高生成速度，但交付前我仍然需要理解逻辑、检查质量，并能回答关键追问。',
+      tags: 'AI协作,输入质量,主动加工,偷换概念'
+    },
+    {
+      title: '龙火审判',
+      world_type: 'fantasy',
+      fallacy_type: '相关不等于因果',
+      difficulty: 1,
+      prompt: '王国粮仓失火。宰相说：“火灾发生前，北境商人刚进城。既然他们来了以后就着火了，那一定是他们带来了灾祸。为了安全，我们必须驱逐所有北境人。”',
+      question: '这段论证最主要的问题是什么？',
+      options: [
+        { key: 'A', label: '相关不等于因果', explanation: '正确。时间先后不等于因果关系。' },
+        { key: 'B', label: '假两难', explanation: '这里虽然提出了驱逐方案，但核心错误是把先后关系当成因果。' },
+        { key: 'C', label: '诉诸权威', explanation: '宰相有权力，但论证重点不是“因为我是宰相所以对”。' },
+        { key: 'D', label: '循环论证', explanation: '这不是用结论重复证明结论。' }
+      ],
+      correct_option: 'A',
+      short_explanation: '北境商人进城和粮仓失火相邻发生，不代表前者导致后者。',
+      deep_explanation: '要证明因果关系，需要机制和证据，例如谁接触过粮仓、火源从哪里来、是否有其他嫌疑人。只凭时间顺序就扩大到驱逐所有北境人，是危险的因果跳跃。',
+      rebuttal: '我们只能说两件事时间接近，还不能说他们导致火灾。先查火源、目击证据和其他可能原因。',
+      tags: '幻想类,因果判断,证据分析,相关不等于因果'
+    }
+  ]
+
+  for (const challenge of challenges) {
+    insertChallenge.run({
+      user_id: userId,
+      visibility: 'private',
+      ...challenge,
+      options: JSON.stringify(challenge.options)
+    })
+  }
 }

@@ -80,6 +80,10 @@ select {
   min-width: 0;
 }
 
+.thinking-page button:disabled {
+  cursor: default;
+}
+
 .glass-panel {
   width: 100%;
   border: 1px solid rgba(100, 116, 139, 0.16);
