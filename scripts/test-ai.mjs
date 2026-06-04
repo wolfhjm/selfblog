@@ -84,11 +84,28 @@ async function testResponsesHistory(url, apiKey, model) {
 
 loadDotEnv()
 
-const provider = process.env.AI_PROVIDER || 'glm'
-const baseUrl = process.env.AI_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4'
-const model = process.env.AI_MODEL || 'glm-4-plus'
-const wireApi = process.env.AI_WIRE_API || 'chat_completions'
-const apiKey = process.env.AI_API_KEY || process.env.GLM_API_KEY || ''
+function providerConfig() {
+  const provider = process.env.AI_PROVIDER || 'glm'
+  if (provider === 'newapi') {
+    return {
+      provider,
+      baseUrl: process.env.NEWAPI_BASE_URL || process.env.AI_BASE_URL || 'http://119.29.173.211:13000/v1',
+      model: process.env.NEWAPI_MODEL || process.env.AI_MODEL || 'glm-4.6',
+      wireApi: process.env.NEWAPI_WIRE_API || process.env.AI_WIRE_API || 'chat_completions',
+      apiKey: process.env.NEWAPI_API_KEY || process.env.AI_API_KEY || ''
+    }
+  }
+
+  return {
+    provider,
+    baseUrl: process.env.AI_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4',
+    model: process.env.AI_MODEL || 'glm-4-plus',
+    wireApi: process.env.AI_WIRE_API || 'chat_completions',
+    apiKey: process.env.AI_API_KEY || process.env.GLM_API_KEY || ''
+  }
+}
+
+const { provider, baseUrl, model, wireApi, apiKey } = providerConfig()
 
 console.log(JSON.stringify({
   provider,

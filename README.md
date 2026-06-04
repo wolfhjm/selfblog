@@ -32,7 +32,7 @@ pnpm test:ai
 
 ## AI 配置
 
-默认兼容 GLM 官方接口，也支持 sub2 或其他 OpenAI-compatible 中转。
+默认兼容 GLM 官方接口，也支持 New API、sub2 或其他 OpenAI-compatible 中转。
 
 ```env
 AI_PROVIDER=glm
@@ -41,6 +41,18 @@ AI_API_KEY=your-key
 AI_MODEL=glm-4-plus
 AI_WIRE_API=chat_completions
 ```
+
+切到自建 New API 网关时，保留上面的 GLM 配置也可以，另加：
+
+```env
+AI_PROVIDER=newapi
+NEWAPI_BASE_URL=http://119.29.173.211:13000/v1
+NEWAPI_API_KEY=your-newapi-token
+NEWAPI_MODEL=glm-4.6
+NEWAPI_WIRE_API=chat_completions
+```
+
+`AI_PROVIDER=newapi` 时优先读取 `NEWAPI_*`，没有设置时才回退到通用 `AI_*`。
 
 `AI_WIRE_API` 支持：
 

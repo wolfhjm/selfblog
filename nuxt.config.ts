@@ -1,3 +1,5 @@
+const aiConfig = aiProviderConfig()
+
 export default defineNuxtConfig({
   compatibilityDate: '2026-05-27',
   devtools: { enabled: true },
@@ -24,11 +26,11 @@ export default defineNuxtConfig({
     sessionSecret: process.env.SESSION_SECRET || 'dev-session-secret-change-me',
     adminEmail: process.env.ADMIN_EMAIL || 'you@example.com',
     adminPassword: process.env.ADMIN_PASSWORD || 'change-me-now',
-    aiProvider: process.env.AI_PROVIDER || 'glm',
-    aiBaseUrl: process.env.AI_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4',
-    aiApiKey: process.env.AI_API_KEY || process.env.GLM_API_KEY || '',
-    aiModel: process.env.AI_MODEL || 'glm-4-plus',
-    aiWireApi: process.env.AI_WIRE_API || 'chat_completions',
+    aiProvider: aiConfig.provider,
+    aiBaseUrl: aiConfig.baseUrl,
+    aiApiKey: aiConfig.apiKey,
+    aiModel: aiConfig.model,
+    aiWireApi: aiConfig.wireApi,
     public: {
       appName: '个人成长 OS'
     }
@@ -39,3 +41,24 @@ export default defineNuxtConfig({
     }
   }
 })
+
+function aiProviderConfig() {
+  const provider = process.env.AI_PROVIDER || 'glm'
+  if (provider === 'newapi') {
+    return {
+      provider,
+      baseUrl: process.env.NEWAPI_BASE_URL || process.env.AI_BASE_URL || 'http://119.29.173.211:13000/v1',
+      apiKey: process.env.NEWAPI_API_KEY || process.env.AI_API_KEY || '',
+      model: process.env.NEWAPI_MODEL || process.env.AI_MODEL || 'glm-4.6',
+      wireApi: process.env.NEWAPI_WIRE_API || process.env.AI_WIRE_API || 'chat_completions'
+    }
+  }
+
+  return {
+    provider,
+    baseUrl: process.env.AI_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4',
+    apiKey: process.env.AI_API_KEY || process.env.GLM_API_KEY || '',
+    model: process.env.AI_MODEL || 'glm-4-plus',
+    wireApi: process.env.AI_WIRE_API || 'chat_completions'
+  }
+}
