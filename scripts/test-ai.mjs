@@ -90,7 +90,7 @@ function providerConfig() {
     return {
       provider,
       baseUrl: process.env.NEWAPI_BASE_URL || process.env.AI_BASE_URL || 'http://119.29.173.211:13000/v1',
-      model: process.env.NEWAPI_MODEL || process.env.AI_MODEL || 'glm-4.6',
+      model: process.env.NEWAPI_MODEL || 'glm-4.7',
       wireApi: process.env.NEWAPI_WIRE_API || process.env.AI_WIRE_API || 'chat_completions',
       apiKey: process.env.NEWAPI_API_KEY || process.env.AI_API_KEY || ''
     }

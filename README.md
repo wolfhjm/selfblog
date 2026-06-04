@@ -48,11 +48,11 @@ AI_WIRE_API=chat_completions
 AI_PROVIDER=newapi
 NEWAPI_BASE_URL=http://119.29.173.211:13000/v1
 NEWAPI_API_KEY=your-newapi-token
-NEWAPI_MODEL=glm-4.6
+NEWAPI_MODEL=glm-4.7
 NEWAPI_WIRE_API=chat_completions
 ```
 
-`AI_PROVIDER=newapi` 时优先读取 `NEWAPI_*`，没有设置时才回退到通用 `AI_*`。
+`AI_PROVIDER=newapi` 时优先读取 `NEWAPI_*`。模型名不会回退到通用 `AI_MODEL`，避免把其它供应商的模型名发送到 New API；未设置 `NEWAPI_MODEL` 时默认使用 `glm-4.7`。
 
 `AI_WIRE_API` 支持：
 
