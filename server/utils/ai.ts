@@ -4,7 +4,7 @@ export interface ChatMessage {
 }
 
 export type ConversationMode = 'explore' | 'structured'
-export type AiProvider = 'glm' | 'newapi'
+export type AiProvider = 'glm' | 'newapi' | 'sub2'
 
 export interface AiPreference {
   provider: AiProvider
@@ -229,6 +229,7 @@ export function availableAiModels(userId?: number) {
   const preference = getAiPreference(userId)
   const glmModel = String(config.glmModel || 'glm-4-plus')
   const newapiModels = splitModels(String(config.newapiModels || 'glm-4.7,glm-5.1,glm-4.6'))
+  const sub2Models = splitModels(String(config.sub2Models || 'gpt-5.5,gpt-5.4,gpt-5.1,gpt-5'))
   const groups = [
     {
       label: 'GLM 官方',
@@ -239,6 +240,11 @@ export function availableAiModels(userId?: number) {
       label: 'New API',
       provider: 'newapi' as const,
       models: uniqueModels([String(config.newapiModel || 'glm-4.7'), ...newapiModels])
+    },
+    {
+      label: 'sub2',
+      provider: 'sub2' as const,
+      models: uniqueModels([String(config.sub2Model || 'gpt-5.5'), ...sub2Models])
     }
   ]
 
@@ -265,8 +271,9 @@ export function availableAiModels(userId?: number) {
 }
 
 export function getAiPreference(userId?: number): AiPreference {
+  const runtimeProvider = normalizeAiProvider(String(useRuntimeConfig().aiProvider || 'glm'))
   const fallback = normalizeAiPreference({
-    provider: String(useRuntimeConfig().aiProvider || 'glm') === 'newapi' ? 'newapi' : 'glm',
+    provider: runtimeProvider,
     model: String(useRuntimeConfig().aiModel || '')
   })
   if (!userId) return fallback
@@ -296,6 +303,15 @@ export function setAiPreference(userId: number, preference: AiPreference) {
 function resolveAiConfig(userId?: number): AiResolvedConfig {
   const config = useRuntimeConfig()
   const preference = getAiPreference(userId)
+  if (preference.provider === 'sub2') {
+    return {
+      ...preference,
+      baseUrl: String(config.sub2BaseUrl || config.aiBaseUrl || ''),
+      apiKey: String(config.sub2ApiKey || ''),
+      wireApi: String(config.sub2WireApi || config.aiWireApi || 'responses')
+    }
+  }
+
   if (preference.provider === 'newapi') {
     return {
       ...preference,
@@ -314,13 +330,28 @@ function resolveAiConfig(userId?: number): AiResolvedConfig {
 }
 
 function normalizeAiPreference(input: Partial<AiPreference>): AiPreference {
-  const provider: AiProvider = input.provider === 'newapi' ? 'newapi' : 'glm'
+  const provider = normalizeAiProvider(input.provider)
   const config = useRuntimeConfig()
-  const model = String(input.model || (provider === 'newapi' ? config.newapiModel : config.glmModel) || '').trim()
+  const fallbackModel = provider === 'sub2'
+    ? config.sub2Model
+    : provider === 'newapi'
+      ? config.newapiModel
+      : config.glmModel
+  const model = String(input.model || fallbackModel || '').trim()
   return {
     provider,
-    model: model || (provider === 'newapi' ? 'glm-4.7' : 'glm-4-plus')
+    model: model || defaultModelForProvider(provider)
   }
+}
+
+function normalizeAiProvider(provider?: string | null): AiProvider {
+  return provider === 'newapi' || provider === 'sub2' ? provider : 'glm'
+}
+
+function defaultModelForProvider(provider: AiProvider) {
+  if (provider === 'sub2') return 'gpt-5.5'
+  if (provider === 'newapi') return 'glm-4.7'
+  return 'glm-4-plus'
 }
 
 function splitModels(value: string) {

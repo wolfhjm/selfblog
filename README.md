@@ -54,6 +54,19 @@ NEWAPI_WIRE_API=chat_completions
 
 `AI_PROVIDER=newapi` 时优先读取 `NEWAPI_*`。模型名不会回退到通用 `AI_MODEL`，避免把其它供应商的模型名发送到 New API；未设置 `NEWAPI_MODEL` 时默认使用 `glm-4.7`。
 
+切到 sub2 / ccswitch 风格中转时，使用独立配置：
+
+```env
+AI_PROVIDER=sub2
+SUB2_BASE_URL=https://your-sub2-domain.example
+SUB2_API_KEY=your-sub2-token
+SUB2_MODEL=gpt-5.5
+SUB2_MODELS=gpt-5.5,gpt-5.4,gpt-5.1,gpt-5
+SUB2_WIRE_API=responses
+```
+
+`SUB2_MODELS` 会出现在页面右上角的模型切换菜单里；如果 sub2 使用 `/chat/completions`，把 `SUB2_WIRE_API` 改成 `chat_completions`。
+
 `AI_WIRE_API` 支持：
 
 - `chat_completions`：OpenAI/GLM 兼容的 `/chat/completions`。

@@ -40,6 +40,11 @@ export default defineNuxtConfig({
     newapiModel: process.env.NEWAPI_MODEL || 'glm-4.7',
     newapiModels: process.env.NEWAPI_MODELS || 'glm-4.7,glm-5.1,glm-4.6',
     newapiWireApi: process.env.NEWAPI_WIRE_API || (process.env.AI_PROVIDER === 'newapi' ? process.env.AI_WIRE_API : '') || 'chat_completions',
+    sub2BaseUrl: process.env.SUB2_BASE_URL || (process.env.AI_PROVIDER === 'sub2' ? process.env.AI_BASE_URL : '') || '',
+    sub2ApiKey: process.env.SUB2_API_KEY || (process.env.AI_PROVIDER === 'sub2' ? process.env.AI_API_KEY : '') || '',
+    sub2Model: process.env.SUB2_MODEL || (process.env.AI_PROVIDER === 'sub2' ? process.env.AI_MODEL : '') || 'gpt-5.5',
+    sub2Models: process.env.SUB2_MODELS || 'gpt-5.5,gpt-5.4,gpt-5.1,gpt-5',
+    sub2WireApi: process.env.SUB2_WIRE_API || (process.env.AI_PROVIDER === 'sub2' ? process.env.AI_WIRE_API : '') || 'responses',
     public: {
       appName: '个人成长 OS'
     }
@@ -53,6 +58,16 @@ export default defineNuxtConfig({
 
 function aiProviderConfig() {
   const provider = process.env.AI_PROVIDER || 'glm'
+  if (provider === 'sub2') {
+    return {
+      provider,
+      baseUrl: process.env.SUB2_BASE_URL || process.env.AI_BASE_URL || '',
+      apiKey: process.env.SUB2_API_KEY || process.env.AI_API_KEY || '',
+      model: process.env.SUB2_MODEL || process.env.AI_MODEL || 'gpt-5.5',
+      wireApi: process.env.SUB2_WIRE_API || process.env.AI_WIRE_API || 'responses'
+    }
+  }
+
   if (provider === 'newapi') {
     return {
       provider,

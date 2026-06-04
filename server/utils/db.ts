@@ -148,6 +148,24 @@ function migrate(database: Database.Database) {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS toolbox_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      category_id TEXT NOT NULL,
+      category_title TEXT NOT NULL DEFAULT '',
+      tool_id TEXT NOT NULL,
+      tool_title TEXT NOT NULL DEFAULT '',
+      tool_type TEXT NOT NULL DEFAULT '',
+      duration_seconds INTEGER NOT NULL DEFAULT 0,
+      intensity_before INTEGER NOT NULL DEFAULT 0,
+      intensity_after INTEGER NOT NULL DEFAULT 0,
+      context TEXT NOT NULL DEFAULT '',
+      reflection TEXT NOT NULL DEFAULT '',
+      next_step TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS experiments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -292,6 +310,7 @@ function migrate(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_event_chains_source ON event_chains(user_id, source_type, source_id);
     CREATE INDEX IF NOT EXISTS idx_extracted_events_chain ON extracted_events(user_id, event_chain_id, sort_order);
     CREATE INDEX IF NOT EXISTS idx_experiment_logs_experiment ON experiment_logs(user_id, experiment_id, log_date);
+    CREATE INDEX IF NOT EXISTS idx_toolbox_logs_user_created ON toolbox_logs(user_id, created_at);
   `)
 
   ensureColumn(database, 'principles', 'verification_status', "TEXT NOT NULL DEFAULT 'unverified'")

@@ -86,6 +86,16 @@ loadDotEnv()
 
 function providerConfig() {
   const provider = process.env.AI_PROVIDER || 'glm'
+  if (provider === 'sub2') {
+    return {
+      provider,
+      baseUrl: process.env.SUB2_BASE_URL || process.env.AI_BASE_URL || '',
+      model: process.env.SUB2_MODEL || process.env.AI_MODEL || 'gpt-5.5',
+      wireApi: process.env.SUB2_WIRE_API || process.env.AI_WIRE_API || 'responses',
+      apiKey: process.env.SUB2_API_KEY || process.env.AI_API_KEY || ''
+    }
+  }
+
   if (provider === 'newapi') {
     return {
       provider,
