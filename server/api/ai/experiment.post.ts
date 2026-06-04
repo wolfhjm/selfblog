@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
       role: 'user',
       content: JSON.stringify({ principles, checkins, latestExperiment }, null, 2)
     }
-  ], { temperature: 0.6 })
+  ], { temperature: 0.6, userId: user.id })
 
   try {
     const parsed = JSON.parse(raw)

@@ -31,6 +31,15 @@ export default defineNuxtConfig({
     aiApiKey: aiConfig.apiKey,
     aiModel: aiConfig.model,
     aiWireApi: aiConfig.wireApi,
+    glmBaseUrl: process.env.GLM_BASE_URL || process.env.AI_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4',
+    glmApiKey: process.env.GLM_API_KEY || (process.env.AI_PROVIDER === 'glm' ? process.env.AI_API_KEY : '') || '',
+    glmModel: process.env.GLM_MODEL || (process.env.AI_PROVIDER === 'glm' ? process.env.AI_MODEL : '') || 'glm-4-plus',
+    glmWireApi: process.env.GLM_WIRE_API || (process.env.AI_PROVIDER === 'glm' ? process.env.AI_WIRE_API : '') || 'chat_completions',
+    newapiBaseUrl: process.env.NEWAPI_BASE_URL || (process.env.AI_PROVIDER === 'newapi' ? process.env.AI_BASE_URL : '') || 'http://119.29.173.211:13000/v1',
+    newapiApiKey: process.env.NEWAPI_API_KEY || (process.env.AI_PROVIDER === 'newapi' ? process.env.AI_API_KEY : '') || '',
+    newapiModel: process.env.NEWAPI_MODEL || 'glm-4.7',
+    newapiModels: process.env.NEWAPI_MODELS || 'glm-4.7,glm-5.1,glm-4.6',
+    newapiWireApi: process.env.NEWAPI_WIRE_API || (process.env.AI_PROVIDER === 'newapi' ? process.env.AI_WIRE_API : '') || 'chat_completions',
     public: {
       appName: '个人成长 OS'
     }

@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
         content: '你是个人成长 OS 的洞察提炼助手。请从对话中提炼 1 条可行动、可保存的中文洞察。只输出洞察本身，不要编号，不要解释。'
       },
       { role: 'user', content: transcript }
-    ], { temperature: 0.3 })
+    ], { temperature: 0.3, userId: user.id })
 
     return { content: content.trim(), source_conversation_id: body.conversation_id, fallback: false }
   } catch (error: any) {

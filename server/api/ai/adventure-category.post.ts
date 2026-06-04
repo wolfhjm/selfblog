@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
         ].join('\n')
       },
       { role: 'user', content: JSON.stringify({ existing, recentCheckins: checkins }, null, 2) }
-    ], { temperature: 0.8 })
+    ], { temperature: 0.8, userId: user.id })
     const parsed = JSON.parse(raw)
     return normalizeCategoryDraft(parsed)
   } catch {

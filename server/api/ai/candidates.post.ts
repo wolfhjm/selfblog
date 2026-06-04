@@ -97,7 +97,7 @@ export default defineEventHandler(async (event) => {
       ].join('\n')
     },
     { role: 'user', content: transcript }
-  ], { temperature: 0.2 })
+  ], { temperature: 0.2, userId: user.id })
 
   const extraction = parseExtraction(raw)
   const normalizedEvents = extraction.events.map(normalizeExtractedEvent).slice(0, 4)

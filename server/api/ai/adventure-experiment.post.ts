@@ -48,7 +48,7 @@ export default defineEventHandler(async (event) => {
         role: 'user',
         content: JSON.stringify({ category, checkins, latestExperiments }, null, 2)
       }
-    ], { temperature: 0.85 })
+    ], { temperature: 0.85, userId: user.id })
 
     return {
       ...normalizeAdventureExperiment(JSON.parse(raw), category),

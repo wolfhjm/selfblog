@@ -7,7 +7,7 @@ const schema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  requireUser(event)
+  const user = requireUser(event)
   const body = schema.parse(await readBody(event))
 
   try {
@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
         ].join('\n')
       },
       { role: 'user', content: JSON.stringify(body, null, 2) }
-    ], { temperature: 0.45 })
+    ], { temperature: 0.45, userId: user.id })
 
     return { prompt_hint: prompt.trim().slice(0, 500) }
   } catch {

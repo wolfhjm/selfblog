@@ -17,6 +17,7 @@
 
       <div class="flex items-center gap-2">
         <UButton v-if="!user" to="/public" color="neutral" variant="ghost">公开说明书</UButton>
+        <AiModelSelect v-if="user" />
         <UButton v-if="user" icon="i-lucide-log-out" color="neutral" variant="ghost" aria-label="退出登录" @click="logout" />
       </div>
     </div>

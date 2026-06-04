@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
         }
       }, null, 2)
     }
-  ], { temperature: 0.35 })
+  ], { temperature: 0.35, userId: user.id })
 
   return {
     date,

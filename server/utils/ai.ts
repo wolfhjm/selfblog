@@ -4,6 +4,18 @@ export interface ChatMessage {
 }
 
 export type ConversationMode = 'explore' | 'structured'
+export type AiProvider = 'glm' | 'newapi'
+
+export interface AiPreference {
+  provider: AiProvider
+  model: string
+}
+
+interface AiResolvedConfig extends AiPreference {
+  baseUrl: string
+  apiKey: string
+  wireApi: string
+}
 
 const exploreSystemPrompt = `
 你是一个陪伴型的个人成长教练。你的用户正在通过这个网站认识自己、建立原则、尝试新事物。
@@ -85,9 +97,8 @@ function compactNetworkError(error: any, endpoint: string) {
   return `无法连接到 ${host}：${String(error?.message || '网络请求失败').replace(/\s+/g, ' ').slice(0, 160)}`
 }
 
-async function requestAiJson(path: 'chat/completions' | 'responses', body: Record<string, unknown>) {
-  const config = useRuntimeConfig()
-  const endpoint = aiEndpoint(path)
+async function requestAiJson(path: 'chat/completions' | 'responses', body: Record<string, unknown>, aiConfig: AiResolvedConfig) {
+  const endpoint = aiEndpoint(path, aiConfig.baseUrl)
   let lastStatus = 500
   let lastStatusText = 'AI request failed'
   let lastDetail = ''
@@ -99,7 +110,7 @@ async function requestAiJson(path: 'chat/completions' | 'responses', body: Recor
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.aiApiKey}`
+          Authorization: `Bearer ${aiConfig.apiKey}`
         },
         body: JSON.stringify(body)
       })
@@ -132,39 +143,36 @@ async function requestAiJson(path: 'chat/completions' | 'responses', body: Recor
   })
 }
 
-export async function callAi(messages: ChatMessage[], options: { temperature?: number } = {}) {
-  const config = useRuntimeConfig()
-  if (!config.aiApiKey) {
+export async function callAi(messages: ChatMessage[], options: { temperature?: number, userId?: number } = {}) {
+  const aiConfig = resolveAiConfig(options.userId)
+  if (!aiConfig.apiKey) {
     throw createError({
       statusCode: 424,
-      statusMessage: 'AI_API_KEY 未配置，请在 .env 中设置 AI_API_KEY 或 GLM_API_KEY'
+      statusMessage: `${aiConfig.provider} API Key 未配置，请检查 .env`
     })
   }
 
-  const wireApi = String(config.aiWireApi || 'chat_completions')
-  if (wireApi === 'responses') {
-    return callResponsesApi(messages, options)
+  if (aiConfig.wireApi === 'responses') {
+    return callResponsesApi(messages, aiConfig, options)
   }
 
-  return callChatCompletionsApi(messages, options)
+  return callChatCompletionsApi(messages, aiConfig, options)
 }
 
-function aiEndpoint(path: 'chat/completions' | 'responses') {
-  const config = useRuntimeConfig()
-  const baseUrl = String(config.aiBaseUrl || '').replace(/\/$/, '')
+function aiEndpoint(path: 'chat/completions' | 'responses', inputBaseUrl: string) {
+  const baseUrl = String(inputBaseUrl || '').replace(/\/$/, '')
   if (baseUrl.endsWith(`/${path}`)) return baseUrl
   if (baseUrl.endsWith('/v1') || baseUrl.endsWith('/v4')) return `${baseUrl}/${path}`
   return `${baseUrl}/${path}`
 }
 
-async function callChatCompletionsApi(messages: ChatMessage[], options: { temperature?: number } = {}) {
-  const config = useRuntimeConfig()
+async function callChatCompletionsApi(messages: ChatMessage[], aiConfig: AiResolvedConfig, options: { temperature?: number } = {}) {
   const data = await requestAiJson('chat/completions', {
-    model: config.aiModel,
+    model: aiConfig.model,
     messages,
     temperature: options.temperature ?? 0.7,
     max_tokens: 1400
-  })
+  }, aiConfig)
   const content = data?.choices?.[0]?.message?.content
   if (!content) {
     throw createError({ statusCode: 502, statusMessage: 'AI 返回格式异常，没有找到回复内容' })
@@ -172,8 +180,7 @@ async function callChatCompletionsApi(messages: ChatMessage[], options: { temper
   return String(content)
 }
 
-async function callResponsesApi(messages: ChatMessage[], options: { temperature?: number } = {}) {
-  const config = useRuntimeConfig()
+async function callResponsesApi(messages: ChatMessage[], aiConfig: AiResolvedConfig, options: { temperature?: number } = {}) {
   const systemText = messages
     .filter((message) => message.role === 'system')
     .map((message) => message.content)
@@ -189,12 +196,12 @@ async function callResponsesApi(messages: ChatMessage[], options: { temperature?
     }))
 
   const data = await requestAiJson('responses', {
-    model: config.aiModel,
+    model: aiConfig.model,
     instructions: systemText || undefined,
     input,
     temperature: options.temperature ?? 0.7,
     max_output_tokens: 1400
-  })
+  }, aiConfig)
   const content = data?.output_text
     || data?.output?.flatMap((item: any) => item?.content || [])
       ?.map((item: any) => item?.text || '')
@@ -206,13 +213,120 @@ async function callResponsesApi(messages: ChatMessage[], options: { temperature?
   return String(content)
 }
 
-export function getAiRuntimeSummary() {
-  const config = useRuntimeConfig()
+export function getAiRuntimeSummary(userId?: number) {
+  const config = resolveAiConfig(userId)
   return {
-    provider: config.aiProvider,
-    baseUrl: config.aiBaseUrl,
-    model: config.aiModel,
-    wireApi: config.aiWireApi || 'chat_completions',
-    hasApiKey: Boolean(config.aiApiKey)
+    provider: config.provider,
+    baseUrl: config.baseUrl,
+    model: config.model,
+    wireApi: config.wireApi,
+    hasApiKey: Boolean(config.apiKey)
   }
+}
+
+export function availableAiModels(userId?: number) {
+  const config = useRuntimeConfig()
+  const preference = getAiPreference(userId)
+  const glmModel = String(config.glmModel || 'glm-4-plus')
+  const newapiModels = splitModels(String(config.newapiModels || 'glm-4.7,glm-5.1,glm-4.6'))
+  const groups = [
+    {
+      label: 'GLM 官方',
+      provider: 'glm' as const,
+      models: uniqueModels([glmModel])
+    },
+    {
+      label: 'New API',
+      provider: 'newapi' as const,
+      models: uniqueModels([String(config.newapiModel || 'glm-4.7'), ...newapiModels])
+    }
+  ]
+
+  const items = groups.flatMap((group) => group.models.map((model) => ({
+    label: `${group.label} · ${model}`,
+    value: `${group.provider}:${model}`,
+    provider: group.provider,
+    model
+  })))
+  const currentValue = `${preference.provider}:${preference.model}`
+  if (!items.some((item) => item.value === currentValue)) {
+    items.unshift({
+      label: `当前 · ${preference.model}`,
+      value: currentValue,
+      provider: preference.provider,
+      model: preference.model
+    })
+  }
+
+  return {
+    current: preference,
+    items
+  }
+}
+
+export function getAiPreference(userId?: number): AiPreference {
+  const fallback = normalizeAiPreference({
+    provider: String(useRuntimeConfig().aiProvider || 'glm') === 'newapi' ? 'newapi' : 'glm',
+    model: String(useRuntimeConfig().aiModel || '')
+  })
+  if (!userId) return fallback
+
+  const stored = getDb().prepare(`
+    SELECT provider, model
+    FROM ai_preferences
+    WHERE user_id = ?
+  `).get(userId) as Partial<AiPreference> | undefined
+
+  return normalizeAiPreference(stored || fallback)
+}
+
+export function setAiPreference(userId: number, preference: AiPreference) {
+  const normalized = normalizeAiPreference(preference)
+  getDb().prepare(`
+    INSERT INTO ai_preferences (user_id, provider, model, updated_at)
+    VALUES (@user_id, @provider, @model, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET
+      provider = excluded.provider,
+      model = excluded.model,
+      updated_at = CURRENT_TIMESTAMP
+  `).run({ user_id: userId, ...normalized })
+  return normalized
+}
+
+function resolveAiConfig(userId?: number): AiResolvedConfig {
+  const config = useRuntimeConfig()
+  const preference = getAiPreference(userId)
+  if (preference.provider === 'newapi') {
+    return {
+      ...preference,
+      baseUrl: String(config.newapiBaseUrl || config.aiBaseUrl || ''),
+      apiKey: String(config.newapiApiKey || ''),
+      wireApi: String(config.newapiWireApi || 'chat_completions')
+    }
+  }
+
+  return {
+    ...preference,
+    baseUrl: String(config.glmBaseUrl || config.aiBaseUrl || ''),
+    apiKey: String(config.glmApiKey || config.aiApiKey || ''),
+    wireApi: String(config.glmWireApi || 'chat_completions')
+  }
+}
+
+function normalizeAiPreference(input: Partial<AiPreference>): AiPreference {
+  const provider: AiProvider = input.provider === 'newapi' ? 'newapi' : 'glm'
+  const config = useRuntimeConfig()
+  const model = String(input.model || (provider === 'newapi' ? config.newapiModel : config.glmModel) || '').trim()
+  return {
+    provider,
+    model: model || (provider === 'newapi' ? 'glm-4.7' : 'glm-4-plus')
+  }
+}
+
+function splitModels(value: string) {
+  return value.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+function uniqueModels(models: string[]) {
+  return Array.from(new Set(models.map((model) => model.trim()).filter(Boolean)))
 }

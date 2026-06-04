@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
 
   let reply = ''
   try {
-    reply = await callAi(withConversationPrompt([{ role: 'user', content: body.message }], mode))
+    reply = await callAi(withConversationPrompt([{ role: 'user', content: body.message }], mode), { userId: user.id })
     db.prepare('INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)').run(conversationId, 'assistant', reply)
   } catch (error: any) {
     return {
