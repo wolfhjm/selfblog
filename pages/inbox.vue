@@ -66,7 +66,7 @@
                   variant="soft"
                   size="xs"
                   icon="i-lucide-message-circle"
-                  :loading="actingEventId === eventGroup.id"
+                  :loading="creatingEventId === eventGroup.id"
                   @click="analyzeEvent(eventGroup)"
                 >
                   追问事件
@@ -103,7 +103,7 @@
               >
                 <CandidateCard
                   :item="item"
-                  :acting="actingId === item.id"
+                  :acting="actingId === item.id || creatingCandidateId === item.id"
                   @accept="acceptCandidate"
                   @analyze="analyzeCandidate"
                   @edit="openEdit"
@@ -124,7 +124,7 @@
           >
             <CandidateCard
               :item="item"
-              :acting="actingId === item.id"
+              :acting="actingId === item.id || creatingCandidateId === item.id"
               @accept="acceptCandidate"
               @analyze="analyzeCandidate"
               @edit="openEdit"
@@ -223,7 +223,7 @@
 
 <script setup lang="ts">
 import type { Candidate, CandidateType, EventChain, ExtractedEvent } from '~/types/app'
-import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
+import { readableError } from '~/utils/error'
 
 type EventChainDetail = { chain: EventChain, events: ExtractedEvent[], candidates: Candidate[] }
 type EventGroup = { key: string, id: number | null, order: number | null, title: string, items: Candidate[] }
@@ -241,22 +241,21 @@ type Draft = {
 
 const toast = useToast()
 const activeType = ref<CandidateType | 'all'>('all')
-const page = ref(1)
 const pageSize = 12
 const typeQuery = computed(() => activeType.value === 'all' ? undefined : activeType.value)
-const { data: candidateData, refresh } = await useFetch<PaginatedResponse<Candidate>>('/api/candidates', {
-  query: computed(() => ({
-    page: page.value,
-    pageSize,
-    ...(typeQuery.value ? { type: typeQuery.value } : {})
-  })),
-  default: () => emptyPaginatedResponse<Candidate>(pageSize)
+const { data: candidateData, page, refresh } = usePaginatedFetch<Candidate>('/api/candidates', {
+  pageSize,
+  extraQuery: computed(() => typeQuery.value ? { type: typeQuery.value } : {})
 })
 const candidates = computed(() => candidateData.value?.items || [])
 const modalOpen = ref(false)
 const editing = ref<Candidate | null>(null)
+const { createConversation: createEventConversation, creatingKey: creatingEventId } = useConversationCreation()
+const { createConversation: createCandidateConversation, creatingKey: creatingCandidateId } = useConversationCreation()
+// separate loading keys for non-conversation actions
 const actingId = ref<number | null>(null)
 const actingEventId = ref<number | null>(null)
+
 const chainOpen = ref(false)
 const loadingChainId = ref<number | null>(null)
 const chainDetail = ref<EventChainDetail | null>(null)
@@ -328,10 +327,6 @@ const groupedChains = computed(() => {
   }))
 })
 const ungroupedCandidates = computed(() => candidates.value.filter((candidate) => !candidate.event_chain_id))
-
-watch(activeType, () => {
-  page.value = 1
-})
 
 function openCreate() {
   editing.value = null
@@ -420,41 +415,28 @@ async function openChain(id: number) {
 
 async function analyzeEvent(eventGroup: EventGroup) {
   if (!eventGroup.id) return
-  actingEventId.value = eventGroup.id
-  try {
-    const first = eventGroup.items[0]
-    const payload = first ? parsePayload(first.payload) : {}
-    const message = [
-      '我想围绕这个具体事件继续分析，请你用 ABC / CBT 帮我拆清楚，不急着总结。',
-      first?.event_chain_title ? `事件链：${first.event_chain_title}` : '',
-      first?.event_chain_summary ? `事件链摘要：${first.event_chain_summary}` : '',
-      `事件：${eventGroup.title}`,
-      payload.objective_context ? `客观环境：${payload.objective_context}` : '',
-      payload.event_detail || payload.activating_event ? `事件细节：${payload.event_detail || payload.activating_event}` : '',
-      payload.belief_or_interpretation || payload.interpretation ? `当时解释：${payload.belief_or_interpretation || payload.interpretation}` : '',
-      payload.consequence ? `后果：${payload.consequence}` : '',
-      payload.emotion ? `情绪：${payload.emotion}` : '',
-      payload.body_signal ? `身体信号：${payload.body_signal}` : '',
-      payload.hidden_need ? `可能需求：${payload.hidden_need}` : '',
-      payload.hidden_fear ? `可能恐惧：${payload.hidden_fear}` : '',
-      '',
-      '请先指出这个事件里 A、B、C 分别是什么，然后只问我一个最值得补充的问题。'
-    ].filter(Boolean).join('\n')
-
-    const result = await $fetch<any>('/api/conversations', {
-      method: 'POST',
-      body: {
-        title: `事件追问：${eventGroup.title}`.slice(0, 32),
-        message,
-        mode: 'structured'
-      }
-    })
-    await navigateTo(`/explore?conversation=${result.conversationId}`)
-  } catch (err: any) {
-    toast.add({ title: '事件追问创建失败', description: err?.statusMessage || err?.message || '请稍后再试', color: 'error' })
-  } finally {
-    actingEventId.value = null
-  }
+  const first = eventGroup.items[0]
+  const payload = first ? parsePayload(first.payload) : {}
+  const message = [
+    '我想围绕这个具体事件继续分析，请你用 ABC / CBT 帮我拆清楚，不急着总结。',
+    first?.event_chain_title ? `事件链：${first.event_chain_title}` : '',
+    first?.event_chain_summary ? `事件链摘要：${first.event_chain_summary}` : '',
+    `事件：${eventGroup.title}`,
+    payload.objective_context ? `客观环境：${payload.objective_context}` : '',
+    payload.event_detail || payload.activating_event ? `事件细节：${payload.event_detail || payload.activating_event}` : '',
+    payload.belief_or_interpretation || payload.interpretation ? `当时解释：${payload.belief_or_interpretation || payload.interpretation}` : '',
+    payload.consequence ? `后果：${payload.consequence}` : '',
+    payload.emotion ? `情绪：${payload.emotion}` : '',
+    payload.body_signal ? `身体信号：${payload.body_signal}` : '',
+    payload.hidden_need ? `可能需求：${payload.hidden_need}` : '',
+    payload.hidden_fear ? `可能恐惧：${payload.hidden_fear}` : '',
+    '',
+    '请先指出这个事件里 A、B、C 分别是什么，然后只问我一个最值得补充的问题。'
+  ].filter(Boolean).join('\n')
+  await createEventConversation(
+    { title: `事件追问：${eventGroup.title}`.slice(0, 32), message, mode: 'structured' },
+    eventGroup.id
+  )
 }
 
 async function promoteEvent(eventGroup: EventGroup) {
@@ -492,56 +474,43 @@ async function acceptEventCandidates() {
 }
 
 async function analyzeCandidate(item: Candidate) {
-  actingId.value = item.id
-  try {
-    const payload = parsePayload(item.payload)
-    const questions = followUpQuestions(item)
-    const message = [
-      '我想继续分析这条候选，不急着下结论，请你围绕具体事件、感受和隐藏动机追问我。',
-      `候选类型：${typeLabel(item.candidate_type)}`,
-      `标题：${item.title}`,
-      `内容：${item.content || '无'}`,
-      item.event_chain_title ? `事件链：${item.event_chain_title}` : '',
-      item.event_chain_summary ? `事件链摘要：${item.event_chain_summary}` : '',
-      item.event_title ? `所属事件：${item.event_title}` : '',
-      payload.objective_context ? `客观环境：${payload.objective_context}` : '',
-      payload.event_detail || payload.activating_event ? `事件：${payload.event_detail || payload.activating_event}` : '',
-      payload.emotion ? `感受：${payload.emotion}` : '',
-      payload.interpretation || payload.belief_or_interpretation ? `当时解释：${payload.interpretation || payload.belief_or_interpretation}` : '',
-      payload.consequence ? `后果：${payload.consequence}` : '',
-      payload.evidence_for ? `支持证据：${payload.evidence_for}` : '',
-      payload.evidence_against ? `反例：${payload.evidence_against}` : '',
-      payload.reframe ? `新解释：${payload.reframe}` : '',
-      payload.hidden_need ? `可能需求：${payload.hidden_need}` : '',
-      payload.hidden_fear ? `可能恐惧：${payload.hidden_fear}` : '',
-      payload.target_behavior ? `目标行为：${payload.target_behavior}` : '',
-      payload.motivation ? `动机：${payload.motivation}` : '',
-      payload.ability ? `能力/难度：${payload.ability}` : '',
-      payload.prompt ? `提示：${payload.prompt}` : '',
-      payload.tiny_version ? `更小版本：${payload.tiny_version}` : '',
-      payload.success_criterion ? `完成标准：${payload.success_criterion}` : '',
-      payload.opportunity ? `机会/环境：${payload.opportunity}` : '',
-      payload.health_context ? `健康背景：${payload.health_context}` : '',
-      payload.raw_evidence ? `原文证据：${payload.raw_evidence}` : '',
-      questions.length ? `建议追问：\n${questions.map((question: string) => `- ${question}`).join('\n')}` : '',
-      '',
-      '请先帮我指出这条候选里证据最强和最模糊的部分，然后只问一个最值得继续回答的问题。'
-    ].filter(Boolean).join('\n')
-
-    const result = await $fetch<any>('/api/conversations', {
-      method: 'POST',
-      body: {
-        title: `继续分析：${item.title}`.slice(0, 32),
-        message,
-        mode: 'structured'
-      }
-    })
-    await navigateTo(`/explore?conversation=${result.conversationId}`)
-  } catch (err: any) {
-    toast.add({ title: '创建分析对话失败', description: err?.statusMessage || err?.message || '请稍后再试', color: 'error' })
-  } finally {
-    actingId.value = null
-  }
+  const payload = parsePayload(item.payload)
+  const questions = followUpQuestions(item)
+  const message = [
+    '我想继续分析这条候选，不急着下结论，请你围绕具体事件、感受和隐藏动机追问我。',
+    `候选类型：${typeLabel(item.candidate_type)}`,
+    `标题：${item.title}`,
+    `内容：${item.content || '无'}`,
+    item.event_chain_title ? `事件链：${item.event_chain_title}` : '',
+    item.event_chain_summary ? `事件链摘要：${item.event_chain_summary}` : '',
+    item.event_title ? `所属事件：${item.event_title}` : '',
+    payload.objective_context ? `客观环境：${payload.objective_context}` : '',
+    payload.event_detail || payload.activating_event ? `事件：${payload.event_detail || payload.activating_event}` : '',
+    payload.emotion ? `感受：${payload.emotion}` : '',
+    payload.interpretation || payload.belief_or_interpretation ? `当时解释：${payload.interpretation || payload.belief_or_interpretation}` : '',
+    payload.consequence ? `后果：${payload.consequence}` : '',
+    payload.evidence_for ? `支持证据：${payload.evidence_for}` : '',
+    payload.evidence_against ? `反例：${payload.evidence_against}` : '',
+    payload.reframe ? `新解释：${payload.reframe}` : '',
+    payload.hidden_need ? `可能需求：${payload.hidden_need}` : '',
+    payload.hidden_fear ? `可能恐惧：${payload.hidden_fear}` : '',
+    payload.target_behavior ? `目标行为：${payload.target_behavior}` : '',
+    payload.motivation ? `动机：${payload.motivation}` : '',
+    payload.ability ? `能力/难度：${payload.ability}` : '',
+    payload.prompt ? `提示：${payload.prompt}` : '',
+    payload.tiny_version ? `更小版本：${payload.tiny_version}` : '',
+    payload.success_criterion ? `完成标准：${payload.success_criterion}` : '',
+    payload.opportunity ? `机会/环境：${payload.opportunity}` : '',
+    payload.health_context ? `健康背景：${payload.health_context}` : '',
+    payload.raw_evidence ? `原文证据：${payload.raw_evidence}` : '',
+    questions.length ? `建议追问：\n${questions.map((question: string) => `- ${question}`).join('\n')}` : '',
+    '',
+    '请先帮我指出这条候选里证据最强和最模糊的部分，然后只问一个最值得继续回答的问题。'
+  ].filter(Boolean).join('\n')
+  await createCandidateConversation(
+    { title: `继续分析：${item.title}`.slice(0, 32), message, mode: 'structured' },
+    item.id
+  )
 }
 
 function typeLabel(type: string) {

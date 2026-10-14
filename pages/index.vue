@@ -192,28 +192,16 @@
 </template>
 
 <script setup lang="ts">
-import type { Checkin, PeriodReview } from '~/types/app'
-import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
+import type { Checkin, JournalSummary, PeriodReview } from '~/types/app'
+import { readableError } from '~/utils/error'
 
 const toast = useToast()
 const { data: dashboard, refresh } = await useFetch<any>('/api/dashboard')
 const listPageSize = 10
-const checkinPage = ref(1)
-const journalPage = ref(1)
-const periodReviewPage = ref(1)
 const checkinDate = ref('')
-const { data: checkinData, refresh: refreshCheckins } = await useFetch<PaginatedResponse<any>>('/api/checkins', {
-  query: { page: checkinPage, pageSize: listPageSize },
-  default: () => emptyPaginatedResponse<any>(listPageSize)
-})
-const { data: journalData } = await useFetch<PaginatedResponse<any>>('/api/journals', {
-  query: { page: journalPage, pageSize: listPageSize },
-  default: () => emptyPaginatedResponse<any>(listPageSize)
-})
-const { data: periodReviewData, refresh: refreshPeriodReviews } = await useFetch<PaginatedResponse<PeriodReview>>('/api/period-reviews', {
-  query: { page: periodReviewPage, pageSize: listPageSize },
-  default: () => emptyPaginatedResponse<PeriodReview>(listPageSize)
-})
+const { data: checkinData, page: checkinPage, refresh: refreshCheckins } = usePaginatedFetch<Checkin>('/api/checkins', { pageSize: listPageSize })
+const { data: journalData, page: journalPage } = usePaginatedFetch<JournalSummary>('/api/journals', { pageSize: listPageSize })
+const { data: periodReviewData, page: periodReviewPage, refresh: refreshPeriodReviews } = usePaginatedFetch<PeriodReview>('/api/period-reviews', { pageSize: listPageSize })
 const { data: selectedCheckinData, refresh: refreshSelectedCheckin } = await useFetch<{ checkin: Checkin | null }>('/api/checkins/date', {
   query: computed(() => ({ date: checkinDate.value || dashboard.value?.today })),
   default: () => ({ checkin: null }),
@@ -222,7 +210,6 @@ const { data: selectedCheckinData, refresh: refreshSelectedCheckin } = await use
 const checkins = computed(() => checkinData.value?.items || [])
 const journals = computed(() => journalData.value?.items || [])
 const periodReviews = computed(() => periodReviewData.value?.items || [])
-const startingConversationId = ref<number | null>(null)
 const selectedCheckin = computed(() => selectedCheckinData.value?.checkin || null)
 const periodDraft = reactive({
   period_type: 'week',
@@ -296,35 +283,19 @@ async function savePeriodReview() {
   toast.add({ title: '周期回顾已入库', color: 'success' })
 }
 
+const { createConversation, creatingKey: startingConversationId } = useConversationCreation()
+
 async function startCheckinConversation(item: any) {
-  startingConversationId.value = item.id
-  try {
-    const message = [
-      '我想基于这次打卡聊一聊。',
-      `日期：${item.date}`,
-      `今天做了什么：${item.done_text || '没有写'}`,
-      `一句话感受：${item.feeling_text || '没有写'}`,
-      `情绪分数：${item.mood}/5`,
-      '',
-      '请你像一个温暖但诚实的朋友陪我聊，也可以像咨询师一样帮我梳理，但不要诊断。先回应我此刻的状态，再问一个能让我更了解自己的问题。'
-    ].join('\n')
-    const result = await $fetch<any>('/api/conversations', {
-      method: 'POST',
-      body: {
-        title: `${item.date} 打卡陪伴`,
-        message
-      }
-    })
-    await navigateTo(`/explore?conversation=${result.conversationId}`)
-  } catch (error: any) {
-    toast.add({
-      title: '对话创建失败',
-      description: error?.statusMessage || error?.message || '请稍后再试',
-      color: 'error'
-    })
-  } finally {
-    startingConversationId.value = null
-  }
+  const message = [
+    '我想基于这次打卡聊一聊。',
+    `日期：${item.date}`,
+    `今天做了什么：${item.done_text || '没有写'}`,
+    `一句话感受：${item.feeling_text || '没有写'}`,
+    `情绪分数：${item.mood}/5`,
+    '',
+    '请你像一个温暖但诚实的朋友陪我聊，也可以像咨询师一样帮我梳理，但不要诊断。先回应我此刻的状态，再问一个能让我更了解自己的问题。'
+  ].join('\n')
+  await createConversation({ title: `${item.date} 打卡陪伴`, message }, item.id)
 }
 
 function setDefaultPeriodRange(today: string) {
@@ -346,7 +317,4 @@ function periodTypeLabel(type: string) {
   return ({ week: '周记', month: '月记', custom: '自定义' } as Record<string, string>)[type] || type
 }
 
-function readableError(err: any, fallback: string) {
-  return String(err?.message || err?.statusMessage || fallback).replace(/\s+/g, ' ').slice(0, 180)
-}
 </script>

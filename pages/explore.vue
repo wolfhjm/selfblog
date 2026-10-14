@@ -226,16 +226,13 @@
 </template>
 
 <script setup lang="ts">
-import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
+import type { Conversation } from '~/types/app'
+import { readableError } from '~/utils/error'
 
 const toast = useToast()
 const route = useRoute()
-const conversationPage = ref(1)
 const conversationPageSize = 20
-const { data: conversationData, refresh } = await useFetch<PaginatedResponse<any>>('/api/conversations', {
-  query: { page: conversationPage, pageSize: conversationPageSize },
-  default: () => emptyPaginatedResponse<any>(conversationPageSize)
-})
+const { data: conversationData, page: conversationPage, refresh } = usePaginatedFetch<Conversation>('/api/conversations', { pageSize: conversationPageSize })
 const conversations = computed(() => conversationData.value?.items || [])
 const draft = ref('')
 const messages = ref<any[]>([])
@@ -535,13 +532,5 @@ async function saveJournal() {
   })
   journalOpen.value = false
   toast.add({ title: '日记小结已保存', color: 'success' })
-}
-
-function readableError(err: any, fallback: string) {
-  const message = String(err?.statusMessage || err?.message || fallback)
-  if (/<\/?[a-z][\s\S]*>/i.test(message)) {
-    return 'AI 上游返回了网关错误页面，请稍后再试或切换模型/线路。'
-  }
-  return message.replace(/\s+/g, ' ').slice(0, 180)
 }
 </script>

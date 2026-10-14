@@ -1,5 +1,4 @@
 import { toolboxCategories } from '~/constants/toolbox'
-import { emptyPaginatedResponse, type PaginatedResponse } from '~/types/pagination'
 import type { ToolboxCategory, ToolboxLog, ToolboxPracticeDraft, ToolboxTool } from '~/types/toolbox'
 import {
   readableToolboxError,
@@ -8,15 +7,10 @@ import {
   toolboxLogPayload
 } from '~/utils/toolbox'
 
-export async function useToolboxSession() {
+export function useToolboxSession() {
   const toast = useToast()
   const categories = toolboxCategories
-  const logPage = ref(1)
   const logPageSize = 5
-  const { data: logData, refresh: refreshLogs } = await useFetch<PaginatedResponse<ToolboxLog>>('/api/toolbox-logs', {
-    query: { page: logPage, pageSize: logPageSize },
-    default: () => emptyPaginatedResponse<ToolboxLog>(logPageSize)
-  })
 
   const selectedCategoryId = ref(categories[0]?.id || '')
   const selectedToolId = ref(categories[0]?.tools[0]?.id || '')
@@ -28,8 +22,9 @@ export async function useToolboxSession() {
   const selectedCategory = computed<ToolboxCategory | undefined>(() => categories.find((item) => item.id === selectedCategoryId.value) || categories[0])
   const selectedTool = computed<ToolboxTool | undefined>(() => selectedCategory.value?.tools.find((item) => item.id === selectedToolId.value) || selectedCategory.value?.tools[0])
   const targetSeconds = computed(() => (selectedTool.value?.durationMinutes || 0) * 60)
-  const toolboxLogs = computed(() => logData.value?.items || [])
   const timer = useToolboxTimer(targetSeconds)
+  const { data: logData, page: logPage, refresh: refreshLogs } = usePaginatedFetch<ToolboxLog>('/api/toolbox-logs', { pageSize: logPageSize })
+  const toolboxLogs = computed(() => logData.value?.items || [])
 
   function selectCategory(categoryId: string) {
     selectedCategoryId.value = categoryId

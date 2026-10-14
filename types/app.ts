@@ -53,11 +53,25 @@ export interface PeriodReview {
   updated_at: string
 }
 
+export interface JournalSummary {
+  id: number
+  user_id: number
+  date: string
+  title: string
+  content: string
+  source_conversation_id: number | null
+  checkin_id: number | null
+  visibility: Visibility
+  created_at: string
+  updated_at: string
+}
+
 export interface Conversation {
   id: number
   user_id: number
   title: string
   type: string
+  mode?: string
   created_at: string
 }
 

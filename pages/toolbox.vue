@@ -83,5 +83,5 @@ const {
   saveLog,
   startToolConversation,
   createExperiment
-} = await useToolboxSession()
+} = useToolboxSession()
 </script>

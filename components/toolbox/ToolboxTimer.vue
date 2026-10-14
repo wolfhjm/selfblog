@@ -39,15 +39,15 @@ defineProps<{
 const emit = defineEmits<{
   toggle: []
   reset: []
-  'update:intensityBefore': [value: number]
-  'update:intensityAfter': [value: number]
+  'update:intensity-before': [value: number]
+  'update:intensity-after': [value: number]
 }>()
 
 function updateIntensityBefore(event: Event) {
-  emit('update:intensityBefore', Number((event.target as HTMLInputElement).value))
+  emit('update:intensity-before', Number((event.target as HTMLInputElement).value))
 }
 
 function updateIntensityAfter(event: Event) {
-  emit('update:intensityAfter', Number((event.target as HTMLInputElement).value))
+  emit('update:intensity-after', Number((event.target as HTMLInputElement).value))
 }
 </script>
